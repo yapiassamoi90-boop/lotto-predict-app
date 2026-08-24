@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lotto Predictor Game</title>
+  
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0284c7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <h1>Lotto Predictor 🎲</h1>
+    <p class="subtitle">Scannez les numéros de la semaine pour générer vos 4 numéros du jeu.</p>
+
+    <div class="camera-card">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas" style="display:none;"></canvas>
+      <button id="btn-scan" class="btn-primary">📸 Scanner & Prédire</button>
+    </div>
+
+    <div id="status" class="status-text">Prêt à scanner...</div>
+
+    <div class="results-card">
+      <h2>Vos 4 Numéros Générés</h2>
+      <div id="numbers-container" class="numbers-grid">
+        <span class="num-ball">-</span>
+        <span class="num-ball">-</span>
+        <span class="num-ball">-</span>
+        <span class="num-ball">-</span>
+      </div>
+    </div>
+
+    <!-- Section Historique + Exportation -->
+    <div class="results-card" style="margin-top: 15px;">
+      <div class="history-header">
+        <h2>Historique des Tirages</h2>
+        <div class="btn-group">
+          <button id="btn-export" class="btn-secondary">📥 Exporter (.txt)</button>
+          <button id="btn-clear" class="btn-danger">🗑️ Effacer</button>
+        </div>
+      </div>
+      <ul id="history-list" class="history-ul"></ul>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
