@@ -1,0 +1,1 @@
+# lotto-predict-app
