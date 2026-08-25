@@ -33,13 +33,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatus('📷 Analyse de la capture d\'écran en cours...', '#38bdf8');
 
     try {
-      // Utilisation du français pour détecter des mots comme "08H", "13H", "RÉVEIL", etc.
       const worker = await Tesseract.createWorker('fra');
-      
       const { data: { text } } = await worker.recognize(file);
       await worker.terminate();
 
-      // 1. Détection automatique de l'heure du tirage
+      // 1. Détection automatique de l'heure du tirage (avec support 07H)
       const detectedTime = parseDrawTime(text);
       if (detectedTime) {
         drawTimeSelect.value = detectedTime;
@@ -61,8 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
       machineNumsInput.value = machineScanned.map(formatTwoDigits).join(' ');
 
       const statusMsg = detectedTime 
-        ? `✅ Tirage ${detectedTime} & numéros détectés ! Vérifiez puis sauvegardez.`
-        : '✅ Numéros analysés ! Vérifiez l\'horaire puis sauvegardez.';
+        ? `✅ Tirage ${detectedTime} & numéros détectés !`
+        : '✅ Numéros analysés ! Sélectionnez l\'horaire puis sauvegardez.';
 
       updateStatus(statusMsg, '#4ade80');
     } catch (error) {
@@ -84,10 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const newDraw = { id: Date.now(), date, time, winning, machine };
-    draws.unshift(newDraw); // Ajout en début de tableau
+    draws.unshift(newDraw);
     localStorage.setItem('lotto_draws', JSON.stringify(draws));
 
-    // Reset des champs
     winningNumsInput.value = '';
     machineNumsInput.value = '';
     ocrFileInput.value = '';
@@ -95,27 +92,32 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHistory();
   });
 
-  // 2. Calculer la prédiction des 4 numéros
+  // 2. Calculer la prédiction ciblée par horaire exact
   btnPredict.addEventListener('click', () => {
     const targetTime = predictTargetTimeSelect.value;
 
     if (draws.length === 0) {
-      updateStatus('⚠️ Aucun tirage enregistré pour effectuer une analyse.', 'orange');
+      updateStatus('⚠️ Aucun tirage enregistré dans l\'historique.', 'orange');
       return;
     }
 
-    updateStatus('🔮 Analyse des tirages et calcul en cours...', '#38bdf8');
-
-    // Filtrer par horaire si possible, sinon utiliser tout l'historique
+    // Filtrage strict : uniquement les tirages de la même heure
     const filteredDraws = draws.filter(d => d.time === targetTime);
-    const pool = filteredDraws.length > 0 ? filteredDraws : draws;
 
-    const predictions = calculateTop4(pool);
+    if (filteredDraws.length === 0) {
+      updateStatus(`⚠️ Aucun historique trouvé pour le tirage de ${targetTime}.`, 'orange');
+      numbersContainer.innerHTML = Array(4).fill('<span class="num-ball">-</span>').join('');
+      return;
+    }
+
+    updateStatus(`🔮 Analyse des tirages de ${targetTime} (${filteredDraws.length} tirage(s) trouvé(s))...`, '#38bdf8');
+
+    const predictions = calculateTop4(filteredDraws);
     displayPrediction(predictions);
-    updateStatus(`🎯 Prédiction générée pour le tirage de ${targetTime} !`, '#4ade80');
+    updateStatus(`🎯 Prédiction exclusive générée pour ${targetTime} !`, '#4ade80');
   });
 
-  // 3. Exporter l'historique en fichier .txt
+  // 3. Exporter l'historique
   btnExport.addEventListener('click', () => {
     if (draws.length === 0) {
       alert('Aucun tirage à exporter.');
@@ -146,34 +148,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Fonctions Utilitaires ---
 
-  // Recherche des motifs d'heures spécifiques dans le texte extrait
+  // Recherche des motifs d'heures spécifiques (y compris 07H)
   function parseDrawTime(rawText) {
     const text = rawText.toUpperCase();
-    if (text.includes('08H') || text.includes('DIGITAL') || text.includes('REVEIL')) return '08H';
+    
+    // Détection 07H / Première heure
+    if (text.includes('07H') || text.includes('7H') || text.includes('PREMIERE') || text.includes('PREMIÈRE')) return '07H';
+    if (text.includes('08H') || text.includes('8H') || text.includes('DIGITAL') || text.includes('REVEIL')) return '08H';
     if (text.includes('10H') || text.includes('MATINALE')) return '10H';
     if (text.includes('13H') || text.includes('EMERGENCE') || text.includes('ÉMERGENCE')) return '13H';
     if (text.includes('16H') || text.includes('APREM') || text.includes('L\'APREM')) return '16H';
     if (text.includes('18H') || text.includes('SOIR')) return '18H';
+    
     return null;
   }
 
-  // Transformer une chaîne de texte en tableau de chiffres uniques (1 à 90)
   function parseNumbers(str) {
     const matches = str.match(/\b\d{1,2}\b/g) || [];
-    const valid = matches
+    return matches
       .map(n => parseInt(n, 10))
       .filter(n => n >= 1 && n <= 90);
-    
-    // Conserve l'ordre original d'apparition sans supprimer les doublons valides entre Gagnants et Machines
-    return valid;
   }
 
-  // Formatage sur 2 chiffres (ex: 8 -> "08")
   function formatTwoDigits(num) {
     return num < 10 ? '0' + num : '' + num;
   }
 
-  // Algorithme d'analyse probabiliste des fréquences + compléments
   function calculateTop4(dataset) {
     const frequency = {};
 
@@ -181,7 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const allNums = [...d.winning, ...d.machine];
       allNums.forEach(num => {
         frequency[num] = (frequency[num] || 0) + 1;
-        // Poids complémentaire (ex: 90 - num)
         const comp = 90 - num;
         if (comp > 0) frequency[comp] = (frequency[comp] || 0) + 0.5;
       });
@@ -191,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
       .map(Number)
       .sort((a, b) => frequency[b] - frequency[a]);
 
-    // Extraction des 4 numéros les plus probables
     const result = sorted.slice(0, 4);
     while (result.length < 4) {
       const rand = Math.floor(Math.random() * 90) + 1;
@@ -201,14 +199,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return result.sort((a, b) => a - b);
   }
 
-  // Afficher la prédiction sous forme de boules
   function displayPrediction(numbers) {
     numbersContainer.innerHTML = numbers
       .map(num => `<span class="num-ball">${formatTwoDigits(num)}</span>`)
       .join('');
   }
 
-  // Afficher la liste de l'historique
   function renderHistory() {
     historyList.innerHTML = '';
     if (draws.length === 0) {
