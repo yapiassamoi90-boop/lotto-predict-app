@@ -37,13 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const { data: { text } } = await worker.recognize(file);
       await worker.terminate();
 
-      // 1. Détection automatique de l'heure du tirage (avec support 07H)
+      // 1. Détection automatique de l'heure du tout premier tirage en haut
       const detectedTime = parseDrawTime(text);
       if (detectedTime) {
         drawTimeSelect.value = detectedTime;
       }
 
-      // 2. Extraction des numéros valides (entre 1 et 90)
+      // 2. Extraction des numéros valides (1 à 90)
       const parsedNums = parseNumbers(text);
 
       if (parsedNums.length === 0) {
@@ -51,9 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Répartition automatique : 5 premiers = Gagnants, 5 suivants = Machines
-      const winningScanned = parsedNums.slice(0, 5);
-      const machineScanned = parsedNums.slice(5, 10);
+      // 3. Limitation stricte aux 10 premiers numéros (5 Gagnants + 5 Machines du 1er tirage)
+      // Évite de mélanger les chiffres si la capture contient 2 ou 3 tirages empilés.
+      const firstDrawNums = parsedNums.slice(0, 10);
+      const winningScanned = firstDrawNums.slice(0, 5);
+      const machineScanned = firstDrawNums.slice(5, 10);
 
       winningNumsInput.value = winningScanned.map(formatTwoDigits).join(' ');
       machineNumsInput.value = machineScanned.map(formatTwoDigits).join(' ');
@@ -152,7 +154,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function parseDrawTime(rawText) {
     const text = rawText.toUpperCase();
     
-    // Détection 07H / Première heure
     if (text.includes('07H') || text.includes('7H') || text.includes('PREMIERE') || text.includes('PREMIÈRE')) return '07H';
     if (text.includes('08H') || text.includes('8H') || text.includes('DIGITAL') || text.includes('REVEIL')) return '08H';
     if (text.includes('10H') || text.includes('MATINALE')) return '10H';
