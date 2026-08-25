@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lotto Predictor Game</title>
+  <title>Lotto Predictor - Côte d'Ivoire & Ghana</title>
   
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0284c7">
@@ -12,37 +12,54 @@
   <link rel="apple-touch-icon" href="icon-192.png">
 
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
   <div class="app-container">
     <h1>Lotto Predictor 🎲</h1>
-    <p class="subtitle">Scannez, importez ou saisissez les numéros pour générer vos 4 numéros du jeu.</p>
+    <p class="subtitle">Analyse et prédiction par horaire de tirage</p>
 
+    <!-- BLOC 1 : Saisie d'un tirage passé -->
     <div class="camera-card">
-      <video id="video" autoplay playsinline></video>
-      <canvas id="canvas" style="display:none;"></canvas>
+      <h2 style="font-size: 1rem; margin-bottom: 10px; color: #38bdf8;">1. Enregistrer un tirage réel</h2>
       
-      <!-- Option 1 : Scanner en direct -->
-      <button id="btn-scan" class="btn-primary">📸 Scanner & Prédire</button>
-
-      <!-- Option 2 : Importer une capture/photo -->
-      <label for="file-input" class="btn-secondary" style="margin-top: 10px; display: block; text-align: center; cursor: pointer; padding: 12px; border-radius: 8px; font-weight: bold;">
-        📁 Importer une image
-      </label>
-      <input type="file" id="file-input" accept="image/*" style="display: none;">
-
-      <!-- Option 3 : Saisie manuelle directe -->
-      <div style="margin-top: 15px; border-top: 1px solid #334155; padding-top: 15px;">
-        <input type="text" id="manual-input" placeholder="Ex: 15, 27, 34, 12, 89" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; font-size: 0.95rem; text-align: center; margin-bottom: 8px;">
-        <button id="btn-manual" class="btn-secondary" style="width: 100%; padding: 10px;">✍️ Valider la saisie manuelle</button>
+      <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+        <input type="date" id="draw-date" style="flex: 1; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 8px;">
+        <select id="draw-time" style="flex: 1; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 8px;">
+          <option value="08H">08H - Digital Réveil</option>
+          <option value="10H">10H - La Matinale</option>
+          <option value="13H">13H - Émergence</option>
+          <option value="16H">16H - L'Aprem</option>
+          <option value="18H">18H - Le Soir</option>
+        </select>
       </div>
+
+      <input type="text" id="winning-nums" placeholder="Gagnants (ex: 09 37 48 32 08)" style="width: 100%; padding: 10px; margin-bottom: 8px; background: #0f172a; color: #facc15; border: 1px solid #475569; border-radius: 8px; text-align: center;">
+      <input type="text" id="machine-nums" placeholder="Machines (ex: 70 30 35 80 64)" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #0f172a; color: #4ade80; border: 1px solid #475569; border-radius: 8px; text-align: center;">
+
+      <button id="btn-save-draw" class="btn-primary" style="background: #334155;">💾 Sauvegarder ce tirage</button>
     </div>
 
-    <div id="status" class="status-text">Prêt à analyser...</div>
+    <!-- BLOC 2 : Prédiction du tirage cible -->
+    <div class="camera-card" style="margin-top: 15px;">
+      <h2 style="font-size: 1rem; margin-bottom: 10px; color: #38bdf8;">2. Prédire le tirage suivant</h2>
+      
+      <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 5px;">Choisissez l'horaire à prédire :</label>
+      <select id="predict-target-time" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #0f172a; color: #38bdf8; border: 1px solid #475569; border-radius: 8px;">
+        <option value="08H">Prédire pour 08H - Digital Réveil</option>
+        <option value="10H">Prédire pour 10H - La Matinale</option>
+        <option value="13H">Prédire pour 13H - Émergence</option>
+        <option value="16H">Prédire pour 16H - L'Aprem</option>
+        <option value="18H">Prédire pour 18H - Le Soir</option>
+      </select>
 
+      <button id="btn-predict" class="btn-primary">🎯 Calculer les 4 numéros</button>
+    </div>
+
+    <div id="status" class="status-text">Prêt pour la saisie...</div>
+
+    <!-- Résultats de la prédiction -->
     <div class="results-card">
-      <h2>Vos 4 Numéros Générés</h2>
+      <h2>Prédiction Générée</h2>
       <div id="numbers-container" class="numbers-grid">
         <span class="num-ball">-</span>
         <span class="num-ball">-</span>
@@ -51,10 +68,10 @@
       </div>
     </div>
 
-    <!-- Section Historique + Exportation -->
+    <!-- Historique des tirages enregistrés -->
     <div class="results-card" style="margin-top: 15px;">
       <div class="history-header">
-        <h2>Historique des Tirages</h2>
+        <h2>Tirages Enregistrés</h2>
         <div class="btn-group">
           <button id="btn-export" class="btn-secondary">📥 Exporter (.txt)</button>
           <button id="btn-clear" class="btn-danger">🗑️ Effacer</button>
