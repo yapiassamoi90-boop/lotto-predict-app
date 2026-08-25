@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderHistory();
 
   // -------------------------------------------------------------
-  // SCAN OCR : Importation et lecture automatique d'une capture d'écran
+  // SCAN OCR : Importation et lecture automatique (Heure + Numéros)
   // -------------------------------------------------------------
   ocrFileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -33,15 +33,19 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatus('📷 Analyse de la capture d\'écran en cours...', '#38bdf8');
 
     try {
-      const worker = await Tesseract.createWorker('eng');
-      await worker.setParameters({
-        tessedit_char_whitelist: '0123456789 ',
-      });
-
+      // Utilisation du français pour détecter des mots comme "08H", "13H", "RÉVEIL", etc.
+      const worker = await Tesseract.createWorker('fra');
+      
       const { data: { text } } = await worker.recognize(file);
       await worker.terminate();
 
-      // Extraction de tous les numéros uniques valides (entre 1 et 90)
+      // 1. Détection automatique de l'heure du tirage
+      const detectedTime = parseDrawTime(text);
+      if (detectedTime) {
+        drawTimeSelect.value = detectedTime;
+      }
+
+      // 2. Extraction des numéros valides (entre 1 et 90)
       const parsedNums = parseNumbers(text);
 
       if (parsedNums.length === 0) {
@@ -49,14 +53,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Répartition automatique : Les 5 premiers en Gagnants, les 5 suivants en Machines
+      // Répartition automatique : 5 premiers = Gagnants, 5 suivants = Machines
       const winningScanned = parsedNums.slice(0, 5);
       const machineScanned = parsedNums.slice(5, 10);
 
       winningNumsInput.value = winningScanned.map(formatTwoDigits).join(' ');
       machineNumsInput.value = machineScanned.map(formatTwoDigits).join(' ');
 
-      updateStatus('✅ Image analysée avec succès ! Vérifiez et enregistrez.', '#4ade80');
+      const statusMsg = detectedTime 
+        ? `✅ Tirage ${detectedTime} & numéros détectés ! Vérifiez puis sauvegardez.`
+        : '✅ Numéros analysés ! Vérifiez l\'horaire puis sauvegardez.';
+
+      updateStatus(statusMsg, '#4ade80');
     } catch (error) {
       console.error(error);
       updateStatus('❌ Erreur lors de la lecture de l\'image.', '#ef4444');
@@ -138,6 +146,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Fonctions Utilitaires ---
 
+  // Recherche des motifs d'heures spécifiques dans le texte extrait
+  function parseDrawTime(rawText) {
+    const text = rawText.toUpperCase();
+    if (text.includes('08H') || text.includes('DIGITAL') || text.includes('REVEIL')) return '08H';
+    if (text.includes('10H') || text.includes('MATINALE')) return '10H';
+    if (text.includes('13H') || text.includes('EMERGENCE') || text.includes('ÉMERGENCE')) return '13H';
+    if (text.includes('16H') || text.includes('APREM') || text.includes('L\'APREM')) return '16H';
+    if (text.includes('18H') || text.includes('SOIR')) return '18H';
+    return null;
+  }
+
   // Transformer une chaîne de texte en tableau de chiffres uniques (1 à 90)
   function parseNumbers(str) {
     const matches = str.match(/\b\d{1,2}\b/g) || [];
@@ -145,7 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
       .map(n => parseInt(n, 10))
       .filter(n => n >= 1 && n <= 90);
     
-    return [...new Set(valid)];
+    // Conserve l'ordre original d'apparition sans supprimer les doublons valides entre Gagnants et Machines
+    return valid;
   }
 
   // Formatage sur 2 chiffres (ex: 8 -> "08")
