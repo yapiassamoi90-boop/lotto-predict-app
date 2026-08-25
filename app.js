@@ -7,8 +7,10 @@ const statusText = document.getElementById('status');
 const balls = document.querySelectorAll('.num-ball');
 const historyList = document.getElementById('history-list');
 
-// Éléments pour l'importation de fichiers
+// Nouveaux éléments (Importation & Saisie manuelle)
 const fileInput = document.getElementById('file-input');
+const manualInput = document.getElementById('manual-input');
+const btnManual = document.getElementById('btn-manual');
 
 // Enregistrement du Service Worker
 if ('serviceWorker' in navigator) {
@@ -29,7 +31,28 @@ async function initCamera() {
   }
 }
 
-// Fonction générique pour extraire les numéros et lancer la prédiction
+// Fonction centrale pour traiter une liste de nombres extraits et lancer la prédiction
+function handleExtractedNumbers(extractedNumbers) {
+  if (!extractedNumbers || extractedNumbers.length === 0) {
+    statusText.innerText = "Aucun numéro valide trouvé (1-99).";
+    return;
+  }
+
+  statusText.innerText = "Génération des numéros...";
+
+  const prediction = generatePrediction(extractedNumbers);
+  
+  balls.forEach((ball, idx) => {
+    ball.innerText = String(prediction[idx]).padStart(2, '0') || '-';
+  });
+
+  saveToLocalStorage(prediction);
+  renderHistory();
+
+  statusText.innerText = "Tirage enregistré avec succès !";
+}
+
+// Fonction générique OCR (caméra ou fichier image)
 async function processImageSource(imageSource) {
   try {
     const { data: { text } } = await Tesseract.recognize(imageSource, 'fra');
@@ -40,25 +63,9 @@ async function processImageSource(imageSource) {
       ?.map(Number)
       .filter(n => n >= 1 && n <= 99) || [];
 
-    if (extractedNumbers.length === 0) {
-      statusText.innerText = "Aucun numéro détecté sur l'image.";
-      return;
-    }
-
-    statusText.innerText = "Génération des numéros...";
-
-    const prediction = generatePrediction(extractedNumbers);
-    
-    balls.forEach((ball, idx) => {
-      ball.innerText = String(prediction[idx]).padStart(2, '0') || '-';
-    });
-
-    saveToLocalStorage(prediction);
-    renderHistory();
-
-    statusText.innerText = "Tirage enregistré !";
+    handleExtractedNumbers(extractedNumbers);
   } catch (err) {
-    statusText.innerText = "Erreur lors du traitement.";
+    statusText.innerText = "Erreur lors du traitement OCR.";
     console.error(err);
   }
 }
@@ -89,7 +96,26 @@ if (fileInput) {
     await processImageSource(imageUrl);
     
     URL.revokeObjectURL(imageUrl);
-    fileInput.value = ''; // Réinitialiser le champ d'importation
+    fileInput.value = ''; 
+  });
+}
+
+// 3. Action : Saisie manuelle directe
+if (btnManual && manualInput) {
+  btnManual.addEventListener('click', () => {
+    const text = manualInput.value.trim();
+    if (!text) {
+      alert("Veuillez entrer des numéros !");
+      return;
+    }
+
+    const extractedNumbers = text
+      .match(/\b\d{1,2}\b/g)
+      ?.map(Number)
+      .filter(n => n >= 1 && n <= 99) || [];
+
+    handleExtractedNumbers(extractedNumbers);
+    manualInput.value = ''; // Vider le champ après validation
   });
 }
 
