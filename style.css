@@ -44,6 +44,7 @@ video {
   background: #000;
 }
 
+/* Boutons principaux et d'importation */
 .btn-primary {
   width: 100%;
   margin-top: 15px;
@@ -60,6 +61,27 @@ video {
 
 .btn-primary:hover {
   background: #0369a1;
+}
+
+/* Style dédié au bouton <label> pour l'import de fichier */
+label[for="file-input"].btn-secondary {
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px;
+  background: #334155;
+  color: #38bdf8;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box;
+  transition: background 0.2s, color 0.2s;
+}
+
+label[for="file-input"].btn-secondary:hover {
+  background: #475569;
+  color: #7dd3fc;
 }
 
 .status-text {
