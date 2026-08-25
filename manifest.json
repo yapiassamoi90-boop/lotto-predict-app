@@ -1,6 +1,6 @@
 {
   "short_name": "LottoPredict",
-  "name": "Lotto Predictor Game (1-99)",
+  "name": "Lotto Predictor (1-90)",
   "icons": [
     {
       "src": "icon-192.png",
@@ -15,7 +15,7 @@
       "purpose": "any maskable"
     }
   ],
-  "start_url": "./index.html",
+  "start_url": "./",
   "background_color": "#0f172a",
   "theme_color": "#0284c7",
   "display": "standalone",
