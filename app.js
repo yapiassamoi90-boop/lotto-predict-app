@@ -7,6 +7,9 @@ const statusText = document.getElementById('status');
 const balls = document.querySelectorAll('.num-ball');
 const historyList = document.getElementById('history-list');
 
+// Éléments pour l'importation de fichiers
+const fileInput = document.getElementById('file-input');
+
 // Enregistrement du Service Worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js')
@@ -26,19 +29,10 @@ async function initCamera() {
   }
 }
 
-// Scan et détection OCR
-btnScan.addEventListener('click', async () => {
-  statusText.innerText = "Capture de l'image...";
-  
-  const context = canvas.getContext('2d');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-  statusText.innerText = "Analyse OCR en cours...";
-
+// Fonction générique pour extraire les numéros et lancer la prédiction
+async function processImageSource(imageSource) {
   try {
-    const { data: { text } } = await Tesseract.recognize(canvas, 'fra');
+    const { data: { text } } = await Tesseract.recognize(imageSource, 'fra');
     
     // Nombres de 1 à 99
     const extractedNumbers = text
@@ -46,12 +40,17 @@ btnScan.addEventListener('click', async () => {
       ?.map(Number)
       .filter(n => n >= 1 && n <= 99) || [];
 
+    if (extractedNumbers.length === 0) {
+      statusText.innerText = "Aucun numéro détecté sur l'image.";
+      return;
+    }
+
     statusText.innerText = "Génération des numéros...";
 
     const prediction = generatePrediction(extractedNumbers);
     
     balls.forEach((ball, idx) => {
-      ball.innerText = prediction[idx] || '-';
+      ball.innerText = String(prediction[idx]).padStart(2, '0') || '-';
     });
 
     saveToLocalStorage(prediction);
@@ -62,7 +61,37 @@ btnScan.addEventListener('click', async () => {
     statusText.innerText = "Erreur lors du traitement.";
     console.error(err);
   }
+}
+
+// 1. Action : Scan via Caméra
+btnScan.addEventListener('click', async () => {
+  statusText.innerText = "Capture de l'image...";
+  
+  const context = canvas.getContext('2d');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  statusText.innerText = "Analyse OCR en cours...";
+  await processImageSource(canvas);
 });
+
+// 2. Action : Importation d'une image depuis la galerie
+if (fileInput) {
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    statusText.innerText = "Lecture du fichier...";
+    const imageUrl = URL.createObjectURL(file);
+
+    statusText.innerText = "Analyse OCR du fichier en cours...";
+    await processImageSource(imageUrl);
+    
+    URL.revokeObjectURL(imageUrl);
+    fileInput.value = ''; // Réinitialiser le champ d'importation
+  });
+}
 
 // Générer 4 numéros (1 à 99)
 function generatePrediction(numbers) {
@@ -122,7 +151,7 @@ btnExport.addEventListener('click', () => {
 
   let content = "=== HISTORIQUE DES TIRAGES LOTTO ===\n\n";
   history.forEach((item, index) => {
-    content += `${index + 1}. [${item.date}] : ${item.numbers.join(' - ')}\n`;
+    content += `${index + 1}. [${item.date}] : ${item.numbers.map(n => String(n).padStart(2, '0')).join(' - ')}\n`;
   });
 
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
