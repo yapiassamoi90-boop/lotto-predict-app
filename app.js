@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const { data: { text } } = await worker.recognize(file);
       await worker.terminate();
 
-      // 1. Détection automatique de l'heure du tout premier tirage en haut
+      // 1. Détection automatique de l'heure
       const detectedTime = parseDrawTime(text);
       if (detectedTime) {
         drawTimeSelect.value = detectedTime;
@@ -51,8 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // 3. Limitation stricte aux 10 premiers numéros (5 Gagnants + 5 Machines du 1er tirage)
-      // Évite de mélanger les chiffres si la capture contient 2 ou 3 tirages empilés.
+      // 3. Limitation aux 10 premiers numéros (5 Gagnants + 5 Machines)
       const firstDrawNums = parsedNums.slice(0, 10);
       const winningScanned = firstDrawNums.slice(0, 5);
       const machineScanned = firstDrawNums.slice(5, 10);
@@ -71,7 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 1. Sauvegarder un tirage
+  // -------------------------------------------------------------
+  // 1. SAUVEGARDER UN TIRAGE
+  // -------------------------------------------------------------
   btnSaveDraw.addEventListener('click', () => {
     const date = drawDateInput.value;
     const time = drawTimeSelect.value;
@@ -94,7 +95,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHistory();
   });
 
-  // 2. Calculer la prédiction ciblée par horaire exact
+  // -------------------------------------------------------------
+  // 2. CALCULER LA PRÉDICTION PAR STATISTIQUES ET HORAIRE
+  // -------------------------------------------------------------
   btnPredict.addEventListener('click', () => {
     const targetTime = predictTargetTimeSelect.value;
 
@@ -103,130 +106,121 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Filtrage strict : uniquement les tirages de la même heure
+    // Filtrage des tirages enregistrés pour l'horaire sélectionné
     const filteredDraws = draws.filter(d => d.time === targetTime);
 
     if (filteredDraws.length === 0) {
-      updateStatus(`⚠️ Aucun historique trouvé pour le tirage de ${targetTime}.`, 'orange');
-      numbersContainer.innerHTML = Array(4).fill('<span class="num-ball">-</span>').join('');
+      updateStatus(`⚠️ Aucun historique disponible pour l'horaire ${targetTime}.`, 'orange');
       return;
     }
 
-    updateStatus(`🔮 Analyse des tirages de ${targetTime} (${filteredDraws.length} tirage(s) trouvé(s))...`, '#38bdf8');
+    // Calcul des fréquences de sortie pour l'horaire cible
+    const freqMap = {};
+    for (let i = 1; i <= 90; i++) freqMap[i] = 0;
 
-    const predictions = calculateTop4(filteredDraws);
-    displayPrediction(predictions);
-    updateStatus(`🎯 Prédiction exclusive générée pour ${targetTime} !`, '#4ade80');
-  });
-
-  // 3. Exporter l'historique
-  btnExport.addEventListener('click', () => {
-    if (draws.length === 0) {
-      alert('Aucun tirage à exporter.');
-      return;
-    }
-
-    const content = draws.map(d => 
-      `Date: ${d.date} | Tirage: ${d.time}\nGagnants: ${d.winning.map(formatTwoDigits).join(' ')}\nMachines: ${d.machine.map(formatTwoDigits).join(' ')}\n-------------------------`
-    ).join('\n');
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `lotto_historique_${new Date().toISOString().slice(0, 10)}.txt`;
-    link.click();
-  });
-
-  // 4. Effacer l'historique
-  btnClear.addEventListener('click', () => {
-    if (confirm('Voulez-vous vraiment tout effacer ?')) {
-      draws = [];
-      localStorage.removeItem('lotto_draws');
-      renderHistory();
-      numbersContainer.innerHTML = Array(4).fill('<span class="num-ball">-</span>').join('');
-      updateStatus('Historique effacé.', '#94a3b8');
-    }
-  });
-
-  // --- Fonctions Utilitaires ---
-
-  // Recherche des motifs d'heures spécifiques (y compris 07H)
-  function parseDrawTime(rawText) {
-    const text = rawText.toUpperCase();
-    
-    if (text.includes('07H') || text.includes('7H') || text.includes('PREMIERE') || text.includes('PREMIÈRE')) return '07H';
-    if (text.includes('08H') || text.includes('8H') || text.includes('DIGITAL') || text.includes('REVEIL')) return '08H';
-    if (text.includes('10H') || text.includes('MATINALE')) return '10H';
-    if (text.includes('13H') || text.includes('EMERGENCE') || text.includes('ÉMERGENCE')) return '13H';
-    if (text.includes('16H') || text.includes('APREM') || text.includes('L\'APREM')) return '16H';
-    if (text.includes('18H') || text.includes('SOIR')) return '18H';
-    
-    return null;
-  }
-
-  function parseNumbers(str) {
-    const matches = str.match(/\b\d{1,2}\b/g) || [];
-    return matches
-      .map(n => parseInt(n, 10))
-      .filter(n => n >= 1 && n <= 90);
-  }
-
-  function formatTwoDigits(num) {
-    return num < 10 ? '0' + num : '' + num;
-  }
-
-  function calculateTop4(dataset) {
-    const frequency = {};
-
-    dataset.forEach(d => {
-      const allNums = [...d.winning, ...d.machine];
+    filteredDraws.forEach(draw => {
+      const allNums = [...draw.winning, ...draw.machine];
       allNums.forEach(num => {
-        frequency[num] = (frequency[num] || 0) + 1;
-        const comp = 90 - num;
-        if (comp > 0) frequency[comp] = (frequency[comp] || 0) + 0.5;
+        if (freqMap[num] !== undefined) freqMap[num]++;
       });
     });
 
-    const sorted = Object.keys(frequency)
+    // Tri des numéros par fréquence décroissante
+    const sortedNums = Object.keys(freqMap)
       .map(Number)
-      .sort((a, b) => frequency[b] - frequency[a]);
+      .sort((a, b) => freqMap[b] - freqMap[a]);
 
-    const result = sorted.slice(0, 4);
-    while (result.length < 4) {
-      const rand = Math.floor(Math.random() * 90) + 1;
-      if (!result.includes(rand)) result.push(rand);
+    // Sélection équilibrée : 2 numéros chauds + 1 moyen + 1 froid
+    const prediction = [
+      sortedNums[0],
+      sortedNums[1],
+      sortedNums[Math.floor(sortedNums.length / 2)],
+      sortedNums[sortedNums.length - 1]
+    ];
+
+    displayPrediction(prediction);
+    updateStatus(`🎯 Prédiction générée pour ${targetTime} (${filteredDraws.length} tirage(s) analysé(s))`, '#4ade80');
+  });
+
+  // -------------------------------------------------------------
+  // FONCTIONS UTILITAIRES & AFFICHAGE
+  // -------------------------------------------------------------
+
+  function parseNumbers(text) {
+    const matches = text.match(/\b([1-9]|[1-8][0-9]|90)\b/g);
+    return matches ? matches.map(Number) : [];
+  }
+
+  function parseDrawTime(text) {
+    const times = ['07H', '08H', '10H', '13H', '16H', '18H'];
+    for (const time of times) {
+      if (text.toUpperCase().includes(time)) return time;
     }
+    return null;
+  }
 
-    return result.sort((a, b) => a - b);
+  function formatTwoDigits(num) {
+    return String(num).padStart(2, '0');
   }
 
   function displayPrediction(numbers) {
-    numbersContainer.innerHTML = numbers
-      .map(num => `<span class="num-ball">${formatTwoDigits(num)}</span>`)
-      .join('');
+    numbersContainer.innerHTML = '';
+    numbers.forEach(num => {
+      const ball = document.createElement('span');
+      ball.className = 'num-ball';
+      ball.textContent = formatTwoDigits(num);
+      numbersContainer.appendChild(ball);
+    });
+  }
+
+  function updateStatus(msg, color) {
+    statusDiv.textContent = msg;
+    statusDiv.style.color = color;
   }
 
   function renderHistory() {
     historyList.innerHTML = '';
-    if (draws.length === 0) {
-      historyList.innerHTML = '<li style="color: #64748b; font-size: 0.85rem;">Aucun tirage enregistré.</li>';
-      return;
-    }
-
-    draws.forEach(d => {
+    draws.forEach(draw => {
       const li = document.createElement('li');
-      li.style.cssText = 'border-bottom: 1px solid #334155; padding: 8px 0; font-size: 0.85rem;';
+      li.style.cssText = 'padding: 8px 0; border-bottom: 1px solid #334155; font-size: 0.85rem;';
+      
+      const winningStr = draw.winning.map(formatTwoDigits).join(' ');
+      const machineStr = draw.machine.length > 0 ? draw.machine.map(formatTwoDigits).join(' ') : '-';
+
       li.innerHTML = `
-        <strong style="color: #38bdf8;">${d.date} (${d.time})</strong><br>
-        <span style="color: #facc15;">G: ${d.winning.map(formatTwoDigits).join(' ') || '---'}</span> | 
-        <span style="color: #4ade80;">M: ${d.machine.map(formatTwoDigits).join(' ') || '---'}</span>
+        <div style="color: #94a3b8; font-weight: bold;">${draw.date} (${draw.time})</div>
+        <div style="color: #facc15;">Gagnants : ${winningStr}</div>
+        <div style="color: #4ade80;">Machines : ${machineStr}</div>
       `;
       historyList.appendChild(li);
     });
   }
 
-  function updateStatus(msg, color = '#94a3b8') {
-    statusDiv.textContent = msg;
-    statusDiv.style.color = color;
-  }
+  // Exporter l'historique au format .txt
+  btnExport.addEventListener('click', () => {
+    if (draws.length === 0) {
+      updateStatus('⚠️ Aucun tirage à exporter.', 'orange');
+      return;
+    }
+    let content = "HISTORIQUE DES TIRAGES LOTO\n\n";
+    draws.forEach(d => {
+      content += `${d.date} | ${d.time} | Gagnants: ${d.winning.map(formatTwoDigits).join(' ')} | Machines: ${d.machine.map(formatTwoDigits).join(' ')}\n`;
+    });
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `lotto_draws_${drawDateInput.value}.txt`;
+    a.click();
+  });
+
+  // Effacer tout l'historique
+  btnClear.addEventListener('click', () => {
+    if (confirm("Voulez-vous supprimer tout l'historique des tirages ?")) {
+      draws = [];
+      localStorage.removeItem('lotto_draws');
+      renderHistory();
+      updateStatus('🗑️ Historique réinitialisé.', '#ef4444');
+    }
+  });
 });
