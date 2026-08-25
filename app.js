@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const winningNumsInput = document.getElementById('winning-nums');
   const machineNumsInput = document.getElementById('machine-nums');
   const btnSaveDraw = document.getElementById('btn-save-draw');
+  const ocrFileInput = document.getElementById('ocr-file-input');
 
   const predictTargetTimeSelect = document.getElementById('predict-target-time');
   const btnPredict = document.getElementById('btn-predict');
@@ -21,6 +22,46 @@ document.addEventListener('DOMContentLoaded', () => {
   // Chargement des données au démarrage
   let draws = JSON.parse(localStorage.getItem('lotto_draws')) || [];
   renderHistory();
+
+  // -------------------------------------------------------------
+  // SCAN OCR : Importation et lecture automatique d'une capture d'écran
+  // -------------------------------------------------------------
+  ocrFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    updateStatus('📷 Analyse de la capture d\'écran en cours...', '#38bdf8');
+
+    try {
+      const worker = await Tesseract.createWorker('eng');
+      await worker.setParameters({
+        tessedit_char_whitelist: '0123456789 ',
+      });
+
+      const { data: { text } } = await worker.recognize(file);
+      await worker.terminate();
+
+      // Extraction de tous les numéros uniques valides (entre 1 et 90)
+      const parsedNums = parseNumbers(text);
+
+      if (parsedNums.length === 0) {
+        updateStatus('⚠️ Aucun numéro valide n\'a pu être lu sur l\'image.', 'orange');
+        return;
+      }
+
+      // Répartition automatique : Les 5 premiers en Gagnants, les 5 suivants en Machines
+      const winningScanned = parsedNums.slice(0, 5);
+      const machineScanned = parsedNums.slice(5, 10);
+
+      winningNumsInput.value = winningScanned.map(formatTwoDigits).join(' ');
+      machineNumsInput.value = machineScanned.map(formatTwoDigits).join(' ');
+
+      updateStatus('✅ Image analysée avec succès ! Vérifiez et enregistrez.', '#4ade80');
+    } catch (error) {
+      console.error(error);
+      updateStatus('❌ Erreur lors de la lecture de l\'image.', '#ef4444');
+    }
+  });
 
   // 1. Sauvegarder un tirage
   btnSaveDraw.addEventListener('click', () => {
@@ -41,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset des champs
     winningNumsInput.value = '';
     machineNumsInput.value = '';
+    ocrFileInput.value = '';
     updateStatus(`✅ Tirage du ${date} (${time}) enregistré.`, '#4ade80');
     renderHistory();
   });
@@ -73,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const content = draws.map(d => 
-      `Date: ${d.date} | Tirage: ${d.time}\nGagnants: ${d.winning.join(' ')}\nMachines: ${d.machine.join(' ')}\n-------------------------`
+      `Date: ${d.date} | Tirage: ${d.time}\nGagnants: ${d.winning.map(formatTwoDigits).join(' ')}\nMachines: ${d.machine.map(formatTwoDigits).join(' ')}\n-------------------------`
     ).join('\n');
 
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -96,12 +138,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Fonctions Utilitaires ---
 
-  // Transformer une chaîne de texte en tableau de chiffres (1 à 90)
+  // Transformer une chaîne de texte en tableau de chiffres uniques (1 à 90)
   function parseNumbers(str) {
     const matches = str.match(/\b\d{1,2}\b/g) || [];
-    return matches
+    const valid = matches
       .map(n => parseInt(n, 10))
       .filter(n => n >= 1 && n <= 90);
+    
+    return [...new Set(valid)];
+  }
+
+  // Formatage sur 2 chiffres (ex: 8 -> "08")
+  function formatTwoDigits(num) {
+    return num < 10 ? '0' + num : '' + num;
   }
 
   // Algorithme d'analyse probabiliste des fréquences + compléments
@@ -122,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .map(Number)
       .sort((a, b) => frequency[b] - frequency[a]);
 
-    // Retourne les 4 numéros les plus probables (ou complète aléatoirement si < 4)
+    // Extraction des 4 numéros les plus probables
     const result = sorted.slice(0, 4);
     while (result.length < 4) {
       const rand = Math.floor(Math.random() * 90) + 1;
@@ -135,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Afficher la prédiction sous forme de boules
   function displayPrediction(numbers) {
     numbersContainer.innerHTML = numbers
-      .map(num => `<span class="num-ball">${num < 10 ? '0' + num : num}</span>`)
+      .map(num => `<span class="num-ball">${formatTwoDigits(num)}</span>`)
       .join('');
   }
 
@@ -152,8 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
       li.style.cssText = 'border-bottom: 1px solid #334155; padding: 8px 0; font-size: 0.85rem;';
       li.innerHTML = `
         <strong style="color: #38bdf8;">${d.date} (${d.time})</strong><br>
-        <span style="color: #facc15;">G: ${d.winning.join(' ') || '---'}</span> | 
-        <span style="color: #4ade80;">M: ${d.machine.join(' ') || '---'}</span>
+        <span style="color: #facc15;">G: ${d.winning.map(formatTwoDigits).join(' ') || '---'}</span> | 
+        <span style="color: #4ade80;">M: ${d.machine.map(formatTwoDigits).join(' ') || '---'}</span>
       `;
       historyList.appendChild(li);
     });
