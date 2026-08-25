@@ -12,13 +12,16 @@
   <link rel="apple-touch-icon" href="icon-192.png">
 
   <link rel="stylesheet" href="style.css">
+
+  <!-- Script Tesseract.js pour la reconnaissance OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
   <div class="app-container">
     <h1>Lotto Predictor 🎲</h1>
     <p class="subtitle">Analyse et prédiction par horaire de tirage</p>
 
-    <!-- BLOC 1 : Saisie d'un tirage passé -->
+    <!-- BLOC 1 : Saisie / Importation d'un tirage passé -->
     <div class="camera-card">
       <h2 style="font-size: 1rem; margin-bottom: 10px; color: #38bdf8;">1. Enregistrer un tirage réel</h2>
       
@@ -33,10 +36,18 @@
         </select>
       </div>
 
+      <!-- Option Importer par Capture d'écran (OCR) -->
+      <div style="margin-bottom: 12px; text-align: center;">
+        <label for="ocr-file-input" class="btn-primary" style="background: #0284c7; display: block; padding: 10px; cursor: pointer; border-radius: 8px; font-weight: bold; color: #fff;">
+          📷 Importer une capture d'écran (OCR)
+        </label>
+        <input type="file" id="ocr-file-input" accept="image/*" style="display: none;">
+      </div>
+
       <input type="text" id="winning-nums" placeholder="Gagnants (ex: 09 37 48 32 08)" style="width: 100%; padding: 10px; margin-bottom: 8px; background: #0f172a; color: #facc15; border: 1px solid #475569; border-radius: 8px; text-align: center;">
       <input type="text" id="machine-nums" placeholder="Machines (ex: 70 30 35 80 64)" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #0f172a; color: #4ade80; border: 1px solid #475569; border-radius: 8px; text-align: center;">
 
-      <button id="btn-save-draw" class="btn-primary" style="background: #334155;">💾 Sauvegarder ce tirage</button>
+      <button id="btn-save-draw" class="btn-primary" style="background: #334155; width: 100%;">💾 Sauvegarder ce tirage</button>
     </div>
 
     <!-- BLOC 2 : Prédiction du tirage cible -->
@@ -52,10 +63,10 @@
         <option value="18H">Prédire pour 18H - Le Soir</option>
       </select>
 
-      <button id="btn-predict" class="btn-primary">🎯 Calculer les 4 numéros</button>
+      <button id="btn-predict" class="btn-primary" style="width: 100%;">🎯 Calculer les 4 numéros</button>
     </div>
 
-    <div id="status" class="status-text">Prêt pour la saisie...</div>
+    <div id="status" class="status-text" style="text-align: center; margin: 15px 0; font-weight: bold;">Prêt pour la saisie...</div>
 
     <!-- Résultats de la prédiction -->
     <div class="results-card">
@@ -70,14 +81,14 @@
 
     <!-- Historique des tirages enregistrés -->
     <div class="results-card" style="margin-top: 15px;">
-      <div class="history-header">
+      <div class="history-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
         <h2>Tirages Enregistrés</h2>
-        <div class="btn-group">
+        <div class="btn-group" style="display: flex; gap: 5px;">
           <button id="btn-export" class="btn-secondary">📥 Exporter (.txt)</button>
           <button id="btn-clear" class="btn-danger">🗑️ Effacer</button>
         </div>
       </div>
-      <ul id="history-list" class="history-ul"></ul>
+      <ul id="history-list" class="history-ul" style="list-style: none; padding: 0;"></ul>
     </div>
   </div>
 
