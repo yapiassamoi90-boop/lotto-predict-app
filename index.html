@@ -17,15 +17,23 @@
 <body>
   <div class="app-container">
     <h1>Lotto Predictor 🎲</h1>
-    <p class="subtitle">Scannez les numéros de la semaine pour générer vos 4 numéros du jeu.</p>
+    <p class="subtitle">Scannez ou importez les numéros de la semaine pour générer vos 4 numéros du jeu.</p>
 
     <div class="camera-card">
       <video id="video" autoplay playsinline></video>
       <canvas id="canvas" style="display:none;"></canvas>
+      
+      <!-- Bouton pour scanner en direct via la caméra -->
       <button id="btn-scan" class="btn-primary">📸 Scanner & Prédire</button>
+
+      <!-- Bouton pour importer une photo/capture depuis la galerie -->
+      <label for="file-input" class="btn-secondary" style="margin-top: 10px; display: block; text-align: center; cursor: pointer; padding: 12px; border-radius: 8px; font-weight: bold;">
+        📁 Importer une image
+      </label>
+      <input type="file" id="file-input" accept="image/*" style="display: none;">
     </div>
 
-    <div id="status" class="status-text">Prêt à scanner...</div>
+    <div id="status" class="status-text">Prêt à scanner ou importer...</div>
 
     <div class="results-card">
       <h2>Vos 4 Numéros Générés</h2>
