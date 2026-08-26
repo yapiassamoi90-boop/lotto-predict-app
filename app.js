@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const { data: { text } } = await worker.recognize(file);
       await worker.terminate();
 
-      // 1. Détection automatique de l'heure
+      // 1. Détection de la TOUTE PREMIÈRE heure lisible sur l'image (de haut en bas)
       const detectedTime = parseDrawTime(text);
       if (detectedTime) {
         drawTimeSelect.value = detectedTime;
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const statusMsg = detectedTime 
         ? `✅ Tirage ${detectedTime} & numéros détectés !`
-        : '✅ Numéros analysés ! Sélectionnez l\'horaire puis sauvegardez.';
+        : '✅ Numéros analysés ! Vérifiez l\'horaire puis sauvegardez.';
 
       updateStatus(statusMsg, '#4ade80');
     } catch (error) {
@@ -160,12 +160,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return matches ? Array.from(new Set(matches.map(Number))) : [];
   }
 
+  // Expression régulière pour extraire le PREMIER horaire rencontré de haut en bas
   function parseDrawTime(text) {
-    const times = ['07H', '08H', '10H', '13H', '16H', '18H'];
-    for (const time of times) {
-      if (text.toUpperCase().includes(time)) return time;
-    }
-    return null;
+    const match = text.toUpperCase().match(/\b(07H|08H|10H|13H|16H|18H)\b/);
+    return match ? match[0] : null;
   }
 
   function formatTwoDigits(num) {
