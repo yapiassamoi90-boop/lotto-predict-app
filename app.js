@@ -10,7 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const predictTargetTimeSelect = document.getElementById('predict-target-time');
   const btnPredict = document.getElementById('btn-predict');
   const statusDiv = document.getElementById('status');
-  const numbersContainer = document.getElementById('numbers-container');
+
+  // Conteneurs de résultats
+  const winningContainer = document.getElementById('winning-container');
+  const machineContainer = document.getElementById('machine-container');
 
   const btnExport = document.getElementById('btn-export');
   const btnClear = document.getElementById('btn-clear');
@@ -37,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const { data: { text } } = await worker.recognize(file);
       await worker.terminate();
 
-      // 1. Détection de la TOUTE PREMIÈRE heure lisible sur l'image (de haut en bas)
+      // 1. Détection de la TOUTE PREMIÈRE heure lisible sur l'image
       const detectedTime = parseDrawTime(text);
       if (detectedTime) {
         drawTimeSelect.value = detectedTime;
@@ -96,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -------------------------------------------------------------
-  // 2. CALCULER LA PRÉDICTION PAR STATISTIQUES ET HORAIRE
+  // 2. CALCULER LA PRÉDICTION SÉPARÉE (GAGNANT ET MACHINE)
   // -------------------------------------------------------------
   btnPredict.addEventListener('click', () => {
     const targetTime = predictTargetTimeSelect.value;
@@ -114,13 +117,25 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Initialisation des fréquences pour les numéros de 1 à 90
+    // Calcul des prédictions pour 5 Gagnants et 5 Machines
+    const predWinning = calculateGroupPrediction(filteredDraws, 'winning');
+    const predMachine = calculateGroupPrediction(filteredDraws, 'machine');
+
+    // Affichage des deux résultats
+    displayPredictionGroup(winningContainer, predWinning, '#facc15');
+    displayPredictionGroup(machineContainer, predMachine, '#4ade80');
+
+    updateStatus(`🎯 Prédiction générée pour ${targetTime} (${filteredDraws.length} tirage(s) analysé(s))`, '#4ade80');
+  });
+
+  // Fonction de calcul statistique pour un groupe donné (winning ou machine)
+  function calculateGroupPrediction(drawList, key) {
     const freqMap = {};
     for (let i = 1; i <= 90; i++) freqMap[i] = 0;
 
-    filteredDraws.forEach(draw => {
-      const allNums = [...draw.winning, ...draw.machine];
-      allNums.forEach(num => {
+    drawList.forEach(draw => {
+      const nums = draw[key] || [];
+      nums.forEach(num => {
         if (freqMap[num] !== undefined) freqMap[num]++;
       });
     });
@@ -130,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .map(Number)
       .sort((a, b) => freqMap[b] - freqMap[a]);
 
-    // Sélection sécurisée sans doublons (2 chauds, 1 moyen, 1 froid)
+    // Sélection de 5 numéros distincts (3 plus chauds, 1 moyen, 1 froid)
     const prediction = [];
     const pickUnique = (index) => {
       let targetIndex = index;
@@ -142,14 +157,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    pickUnique(0); // Plus chaud
-    pickUnique(1); // 2e plus chaud
+    pickUnique(0); // 1er chaud
+    pickUnique(1); // 2e chaud
+    pickUnique(2); // 3e chaud
     pickUnique(Math.floor(sortedNums.length / 2)); // Moyen
-    pickUnique(sortedNums.length - 1); // Plus froid
+    pickUnique(sortedNums.length - 1); // Froid
 
-    displayPrediction(prediction);
-    updateStatus(`🎯 Prédiction générée pour ${targetTime} (${filteredDraws.length} tirage(s) analysé(s))`, '#4ade80');
-  });
+    return prediction;
+  }
 
   // -------------------------------------------------------------
   // FONCTIONS UTILITAIRES & AFFICHAGE
@@ -160,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return matches ? Array.from(new Set(matches.map(Number))) : [];
   }
 
-  // Expression régulière pour extraire le PREMIER horaire rencontré de haut en bas
   function parseDrawTime(text) {
     const match = text.toUpperCase().match(/\b(07H|08H|10H|13H|16H|18H)\b/);
     return match ? match[0] : null;
@@ -170,13 +184,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return String(num).padStart(2, '0');
   }
 
-  function displayPrediction(numbers) {
-    numbersContainer.innerHTML = '';
+  function displayPredictionGroup(container, numbers, textColor) {
+    container.innerHTML = '';
     numbers.forEach(num => {
       const ball = document.createElement('span');
       ball.className = 'num-ball';
+      ball.style.color = textColor;
       ball.textContent = formatTwoDigits(num);
-      numbersContainer.appendChild(ball);
+      container.appendChild(ball);
     });
   }
 
