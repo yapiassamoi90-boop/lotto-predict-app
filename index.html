@@ -65,19 +65,37 @@
         <option value="18H">Prédire pour 18H - Le Soir</option>
       </select>
 
-      <button id="btn-predict" class="btn-primary" style="width: 100%;">🎯 Calculer les 4 numéros</button>
+      <button id="btn-predict" class="btn-primary" style="width: 100%;">🎯 Calculer les prédictions (5 Gagnants + 5 Machines)</button>
     </div>
 
     <div id="status" class="status-text" style="text-align: center; margin: 15px 0; font-weight: bold;">Prêt pour la saisie...</div>
 
-    <!-- Résultats de la prédiction -->
+    <!-- Résultats de la prédiction (Séparés) -->
     <div class="results-card">
       <h2>Prédiction Générée</h2>
-      <div id="numbers-container" class="numbers-grid">
-        <span class="num-ball">-</span>
-        <span class="num-ball">-</span>
-        <span class="num-ball">-</span>
-        <span class="num-ball">-</span>
+      
+      <!-- Section Gagnants -->
+      <div style="margin-bottom: 15px;">
+        <h3 style="font-size: 0.9rem; color: #facc15; margin-bottom: 8px;">🎯 Numéros Gagnants</h3>
+        <div id="winning-container" class="numbers-grid">
+          <span class="num-ball">-</span>
+          <span class="num-ball">-</span>
+          <span class="num-ball">-</span>
+          <span class="num-ball">-</span>
+          <span class="num-ball">-</span>
+        </div>
+      </div>
+
+      <!-- Section Machines -->
+      <div>
+        <h3 style="font-size: 0.9rem; color: #4ade80; margin-bottom: 8px;">⚙️ Numéros Machine</h3>
+        <div id="machine-container" class="numbers-grid">
+          <span class="num-ball">-</span>
+          <span class="num-ball">-</span>
+          <span class="num-ball">-</span>
+          <span class="num-ball">-</span>
+          <span class="num-ball">-</span>
+        </div>
       </div>
     </div>
 
