@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Calcul des fréquences de sortie pour l'horaire cible
+    // Initialisation des fréquences pour les numéros de 1 à 90
     const freqMap = {};
     for (let i = 1; i <= 90; i++) freqMap[i] = 0;
 
@@ -125,18 +125,27 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Tri des numéros par fréquence décroissante
+    // Tri des 90 numéros par fréquence décroissante
     const sortedNums = Object.keys(freqMap)
       .map(Number)
       .sort((a, b) => freqMap[b] - freqMap[a]);
 
-    // Sélection équilibrée : 2 numéros chauds + 1 moyen + 1 froid
-    const prediction = [
-      sortedNums[0],
-      sortedNums[1],
-      sortedNums[Math.floor(sortedNums.length / 2)],
-      sortedNums[sortedNums.length - 1]
-    ];
+    // Sélection sécurisée sans doublons (2 chauds, 1 moyen, 1 froid)
+    const prediction = [];
+    const pickUnique = (index) => {
+      let targetIndex = index;
+      while (prediction.includes(sortedNums[targetIndex]) && targetIndex < sortedNums.length) {
+        targetIndex++;
+      }
+      if (sortedNums[targetIndex] !== undefined) {
+        prediction.push(sortedNums[targetIndex]);
+      }
+    };
+
+    pickUnique(0); // Plus chaud
+    pickUnique(1); // 2e plus chaud
+    pickUnique(Math.floor(sortedNums.length / 2)); // Moyen
+    pickUnique(sortedNums.length - 1); // Plus froid
 
     displayPrediction(prediction);
     updateStatus(`🎯 Prédiction générée pour ${targetTime} (${filteredDraws.length} tirage(s) analysé(s))`, '#4ade80');
@@ -148,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function parseNumbers(text) {
     const matches = text.match(/\b([1-9]|[1-8][0-9]|90)\b/g);
-    return matches ? matches.map(Number) : [];
+    return matches ? Array.from(new Set(matches.map(Number))) : [];
   }
 
   function parseDrawTime(text) {
@@ -178,20 +187,36 @@ document.addEventListener('DOMContentLoaded', () => {
     statusDiv.style.color = color;
   }
 
+  function deleteDraw(id) {
+    draws = draws.filter(d => d.id !== id);
+    localStorage.setItem('lotto_draws', JSON.stringify(draws));
+    renderHistory();
+    updateStatus('🗑️ Tirage supprimé.', '#ef4444');
+  }
+
   function renderHistory() {
     historyList.innerHTML = '';
     draws.forEach(draw => {
       const li = document.createElement('li');
-      li.style.cssText = 'padding: 8px 0; border-bottom: 1px solid #334155; font-size: 0.85rem;';
+      li.style.cssText = 'padding: 8px 0; border-bottom: 1px solid #334155; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;';
       
       const winningStr = draw.winning.map(formatTwoDigits).join(' ');
       const machineStr = draw.machine.length > 0 ? draw.machine.map(formatTwoDigits).join(' ') : '-';
 
-      li.innerHTML = `
+      const contentDiv = document.createElement('div');
+      contentDiv.innerHTML = `
         <div style="color: #94a3b8; font-weight: bold;">${draw.date} (${draw.time})</div>
         <div style="color: #facc15;">Gagnants : ${winningStr}</div>
         <div style="color: #4ade80;">Machines : ${machineStr}</div>
       `;
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = '✕';
+      deleteBtn.style.cssText = 'background: transparent; color: #ef4444; border: none; font-size: 1.1rem; cursor: pointer; padding: 0 8px;';
+      deleteBtn.addEventListener('click', () => deleteDraw(draw.id));
+
+      li.appendChild(contentDiv);
+      li.appendChild(deleteBtn);
       historyList.appendChild(li);
     });
   }
