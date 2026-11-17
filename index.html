@@ -1,128 +1,101 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lotto Predictor - Côte d'Ivoire & Ghana</title>
-  
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0284c7">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="icon-192.png">
-
-  <link rel="stylesheet" href="style.css">
-
-  <!-- Script Tesseract.js pour la reconnaissance OCR -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f172a">
+    <title>Loto 5/90 Analyzer Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="./icon-512.png">
 </head>
 <body>
-  <div class="app-container">
-    <h1>Lotto Predictor 🎲</h1>
-    <p class="subtitle">Analyse et prédiction par horaire de tirage</p>
+    <header>
+        <h1>Loto 5/90 Hybrid Analyzer</h1>
+        <p class="subtitle">Formule Mathématique & Équilibre Statistique</p>
+    </header>
 
-    <!-- BLOC 1 : Saisie / Importation d'un tirage passé -->
-    <div class="camera-card">
-      <h2 style="font-size: 1rem; margin-bottom: 10px; color: #38bdf8;">1. Enregistrer un tirage réel</h2>
-      
-      <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-        <input type="date" id="draw-date" style="flex: 1; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 8px;">
-        <select id="draw-time" style="flex: 1; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 8px;">
-          <option value="07H">07H - Première Heure</option>
-          <option value="08H">08H - Digital Réveil</option>
-          <option value="10H">10H - La Matinale</option>
-          <option value="13H">13H - Émergence</option>
-          <option value="16H">16H - L'Aprem</option>
-          <option value="18H">18H - Le Soir</option>
-        </select>
-      </div>
+    <main>
+        <!-- Section 1 : Paramètres de calcul -->
+        <section class="card">
+            <h2>1. Paramètres du Prochain Tirage</h2>
+            <div class="grid-inputs">
+                <div class="input-group">
+                    <label for="dateCurrent">Date du jour (JJ)</label>
+                    <input type="number" id="dateCurrent" min="1" max="31" value="17">
+                </div>
+                <div class="input-group">
+                    <label for="datePrev">Date veille (JJ)</label>
+                    <input type="number" id="datePrev" min="1" max="31" value="16">
+                </div>
+                <div class="input-group">
+                    <label for="hourCoeff">Heure Tirage</label>
+                    <select id="hourCoeff">
+                        <option value="10">10H</option>
+                        <option value="13">13H</option>
+                        <option value="16">16H</option>
+                        <option value="18">18H</option>
+                        <option value="21">21H</option>
+                        <option value="22">22H</option>
+                        <option value="23">23H</option>
+                    </select>
+                </div>
+            </div>
+            <button id="btnCalculate" class="btn-primary">Générer la Matrice Hybride</button>
+        </section>
 
-      <!-- Option Importer par Capture d'écran (OCR) -->
-      <div style="margin-bottom: 12px; text-align: center;">
-        <label for="ocr-file-input" class="btn-primary" style="background: #0284c7; display: block; padding: 10px; cursor: pointer; border-radius: 8px; font-weight: bold; color: #fff;">
-          📷 Importer une capture d'écran (OCR)
-        </label>
-        <input type="file" id="ocr-file-input" accept="image/*" style="display: none;">
-      </div>
+        <!-- Section 2 : Résultats & Prédictions -->
+        <section class="card results-card" id="resultsSection">
+            <h2>2. Zones Probables & Paires Estimées</h2>
+            <div class="formula-display" id="formulaOutput">Coefficient : --</div>
+            
+            <div class="result-block">
+                <h3>Sélection Principale (Gagnants ciblés)</h3>
+                <div class="balls-container" id="predictedWinners"></div>
+            </div>
 
-      <input type="text" id="winning-nums" placeholder="Gagnants (ex: 09 37 48 32 08)" style="width: 100%; padding: 10px; margin-bottom: 8px; background: #0f172a; color: #facc15; border: 1px solid #475569; border-radius: 8px; text-align: center;">
-      <input type="text" id="machine-nums" placeholder="Machines (ex: 70 30 35 80 64)" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #0f172a; color: #4ade80; border: 1px solid #475569; border-radius: 8px; text-align: center;">
+            <div class="result-block">
+                <h3>Pivots & Machines Associées</h3>
+                <div class="balls-container" id="predictedMachines"></div>
+            </div>
 
-      <button id="btn-save-draw" class="btn-primary" style="background: #334155; width: 100%;">💾 Sauvegarder ce tirage</button>
-    </div>
+            <div class="stats-summary" id="statsAnalysis"></div>
+        </section>
 
-    <!-- BLOC 2 : Prédiction du tirage cible -->
-    <div class="camera-card" style="margin-top: 15px;">
-      <h2 style="font-size: 1rem; margin-bottom: 10px; color: #38bdf8;">2. Prédire le tirage suivant</h2>
-      
-      <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 5px;">Choisissez l'horaire à prédire :</label>
-      <select id="predict-target-time" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #0f172a; color: #38bdf8; border: 1px solid #475569; border-radius: 8px;">
-        <option value="07H">Prédire pour 07H - Première Heure</option>
-        <option value="08H">Prédire pour 08H - Digital Réveil</option>
-        <option value="10H">Prédire pour 10H - La Matinale</option>
-        <option value="13H">Prédire pour 13H - Émergence</option>
-        <option value="16H">Prédire pour 16H - L'Aprem</option>
-        <option value="18H">Prédire pour 18H - Le Soir</option>
-      </select>
+        <!-- Section 3 : Ajout rapide d'un tirage officiel -->
+        <section class="card">
+            <h2>3. Enregistrer un Résultat Officiel</h2>
+            <p class="hint">Saisis les 5 numéros séparés par des espaces ou virgules :</p>
+            <div class="input-group">
+                <label for="drawLabel">Créneau (ex: 13H)</label>
+                <input type="text" id="drawLabel" placeholder="Ex: 13H">
+            </div>
+            <div class="input-group">
+                <label for="inputWinners">5 Gagnants</label>
+                <input type="text" id="inputWinners" placeholder="Ex: 03 20 13 50 25">
+            </div>
+            <div class="input-group">
+                <label for="inputMachines">5 Machines</label>
+                <input type="text" id="inputMachines" placeholder="Ex: 30 86 51 46 26">
+            </div>
+            <button id="btnAddDraw" class="btn-secondary">Ajouter à l'historique</button>
+        </section>
 
-      <button id="btn-predict" class="btn-primary" style="width: 100%;">🎯 Calculer les prédictions (5 Gagnants + 5 Machines)</button>
-    </div>
+        <!-- Section 4 : Historique récent -->
+        <section class="card">
+            <div class="history-header">
+                <h2>4. Historique Récent</h2>
+                <button id="btnReset" class="btn-danger-small">Réinitialiser</button>
+            </div>
+            <div id="historyList" class="history-list"></div>
+        </section>
+    </main>
 
-    <div id="status" class="status-text" style="text-align: center; margin: 15px 0; font-weight: bold;">Prêt pour la saisie...</div>
+    <footer>
+        <p>Outil d'aide à l'analyse statistique • <strong>Dev.Assamoi</strong></p>
+    </footer>
 
-    <!-- Résultats de la prédiction (Séparés) -->
-    <div class="results-card">
-      <h2>Prédiction Générée</h2>
-      
-      <!-- Section Gagnants -->
-      <div style="margin-bottom: 15px;">
-        <h3 style="font-size: 0.9rem; color: #facc15; margin-bottom: 8px;">🎯 Numéros Gagnants</h3>
-        <div id="winning-container" class="numbers-grid">
-          <span class="num-ball">-</span>
-          <span class="num-ball">-</span>
-          <span class="num-ball">-</span>
-          <span class="num-ball">-</span>
-          <span class="num-ball">-</span>
-        </div>
-      </div>
-
-      <!-- Section Machines -->
-      <div>
-        <h3 style="font-size: 0.9rem; color: #4ade80; margin-bottom: 8px;">⚙️ Numéros Machine</h3>
-        <div id="machine-container" class="numbers-grid">
-          <span class="num-ball">-</span>
-          <span class="num-ball">-</span>
-          <span class="num-ball">-</span>
-          <span class="num-ball">-</span>
-          <span class="num-ball">-</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Historique des tirages enregistrés -->
-    <div class="results-card" style="margin-top: 15px;">
-      <div class="history-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h2>Tirages Enregistrés</h2>
-        <div class="btn-group" style="display: flex; gap: 5px;">
-          <button id="btn-export" class="btn-secondary">📥 Exporter (.txt)</button>
-          <button id="btn-clear" class="btn-danger">🗑️ Effacer</button>
-        </div>
-      </div>
-      <ul id="history-list" class="history-ul" style="list-style: none; padding: 0;"></ul>
-    </div>
-  </div>
-
-  <script src="app.js"></script>
-  
-  <!-- Enregistrement du Service Worker PWA -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('SW enregistré :', reg.scope))
-          .catch(err => console.error('Erreur SW :', err));
-      });
-    }
-  </script>
+    <script src="app.js"></script>
 </body>
 </html>
