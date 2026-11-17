@@ -1,4 +1,4 @@
-// Initialisation avec tes derniers tirages connus (21h, 22h, 23h)
+// Initialisation avec tes derniers tirages connus
 const DEFAULT_HISTORY = [
     { label: "23H", winners: [3, 20, 13, 50, 25], machines: [30, 86, 51, 46, 26] },
     { label: "22H", winners: [20, 30, 13, 87, 59], machines: [22, 90, 35, 80, 3] },
@@ -14,7 +14,7 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// Initialisation des dates du jour automatiquement
+// Initialisation des dates et boutons horaires
 document.addEventListener('DOMContentLoaded', () => {
     const today = new Date();
     const yesterday = new Date(today);
@@ -22,6 +22,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('dateCurrent').value = today.getDate();
     document.getElementById('datePrev').value = yesterday.getDate();
+
+    // Gestion du clic sur les boutons d'heures
+    const hourButtons = document.querySelectorAll('.hour-btn');
+    const hourInput = document.getElementById('hourCoeff');
+
+    hourButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            hourButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            hourInput.value = btn.getAttribute('data-hour');
+            generateHybridPrediction();
+        });
+    });
 
     renderHistory();
     generateHybridPrediction();
@@ -52,7 +65,7 @@ function normalizeLoto(num) {
 function generateHybridPrediction() {
     const dCurr = parseFloat(document.getElementById('dateCurrent').value) || 17;
     const dPrev = parseFloat(document.getElementById('datePrev').value) || 16;
-    const hour = parseFloat(document.getElementById('hourCoeff').value) || 13;
+    const hour = parseFloat(document.getElementById('hourCoeff').value) || 10;
 
     // 1. Racine Mathématique : (Date / Veille) * (Heure / 2026)
     const rawCoeff = (dCurr / dPrev) * (hour / 2026);
@@ -70,7 +83,7 @@ function generateHybridPrediction() {
 
     // 2. Analyse statistique sur les 3 derniers tirages (Dizaines en retard)
     const recentDraws = drawHistory.slice(0, 3);
-    const dizaineCounts = Array(9).fill(0); // 0->1-10, 1->11-20 ... 8->81-90
+    const dizaineCounts = Array(9).fill(0);
     let lastMachines = recentDraws.length > 0 ? recentDraws[0].machines : [30, 51, 26];
     let lastWinners = recentDraws.length > 0 ? recentDraws[0].winners : [3, 20, 25];
 
@@ -97,7 +110,7 @@ function generateHybridPrediction() {
     // Base issue de la formule
     finalWinners.add(seedNumbers[0]);
 
-    // Voisinage (+/- 1 ou +/- 2) d'un numéro fort du dernier tirage
+    // Voisinage (+/- 1) d'un numéro fort du dernier tirage
     const pivotWinner = lastWinners[Math.floor(dCurr % lastWinners.length)];
     finalWinners.add(normalizeLoto(pivotWinner + (hour % 2 === 0 ? 1 : -1)));
 
@@ -142,7 +155,7 @@ function generateHybridPrediction() {
     // Texte explicatif de la logique appliquée
     const coldLabels = coldDizaines.map(d => `${d * 10 + 1}-${(d + 1) * 10}`).join(', ');
     document.getElementById('statsAnalysis').innerHTML = `
-        <strong>Logique appliquée :</strong><br>
+        <strong>Logique appliquée (${pad(hour)}H) :</strong><br>
         • Dizaines en retard ciblées : <b>${coldLabels}</b><br>
         • Pivot de transfert machine : <b>${pad(transferMachine)}</b><br>
         • Voisinage actif autour de : <b>${pad(pivotWinner)}</b>
