@@ -32,11 +32,19 @@
                 <div class="input-group">
                     <label for="hourCoeff">Heure Tirage</label>
                     <select id="hourCoeff">
-                        <option value="10">10H (Diamant/Morning)</option>
+                        <option value="7">07H (Digital Réveil)</option>
+                        <option value="8">08H (Soleil)</option>
+                        <option value="10" selected>10H (Réveil / Diamant)</option>
+                        <option value="11">11H (Digital)</option>
+                        <option value="12">12H (Midi)</option>
                         <option value="13">13H (Aprem 1)</option>
+                        <option value="14">14H (Digital)</option>
+                        <option value="15">15H (Digital)</option>
                         <option value="16">16H (Aprem 2)</option>
+                        <option value="17">17H (Digital)</option>
                         <option value="18">18H (National)</option>
-                        <option value="19">19H</option>
+                        <option value="19">19H (Digital)</option>
+                        <option value="20">20H (Digital)</option>
                         <option value="21">21H (Soir)</option>
                         <option value="22">22H (Night)</option>
                         <option value="23">23H (Clôture)</option>
@@ -69,8 +77,8 @@
             <h2>3. Enregistrer un Résultat Officiel</h2>
             <p class="hint">Saisis les 5 numéros séparés par des espaces ou virgules :</p>
             <div class="input-group">
-                <label for="drawLabel">Créneau (ex: 13H)</label>
-                <input type="text" id="drawLabel" placeholder="Ex: 13H">
+                <label for="drawLabel">Créneau (ex: 07H, 08H, 10H...)</label>
+                <input type="text" id="drawLabel" placeholder="Ex: 07H">
             </div>
             <div class="input-group">
                 <label for="inputWinners">5 Gagnants</label>
