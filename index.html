@@ -20,7 +20,7 @@
         <!-- Section 1 : Paramètres de calcul -->
         <section class="card">
             <h2>1. Paramètres du Prochain Tirage</h2>
-            <div class="grid-inputs">
+            <div class="grid-dates">
                 <div class="input-group">
                     <label for="dateCurrent">Date du jour (JJ)</label>
                     <input type="number" id="dateCurrent" min="1" max="31" value="17">
@@ -29,28 +29,31 @@
                     <label for="datePrev">Date veille (JJ)</label>
                     <input type="number" id="datePrev" min="1" max="31" value="16">
                 </div>
-                <div class="input-group">
-                    <label for="hourCoeff">Heure Tirage</label>
-                    <select id="hourCoeff">
-                        <option value="7">07H (Digital Réveil)</option>
-                        <option value="8">08H (Soleil)</option>
-                        <option value="10" selected>10H (Réveil / Diamant)</option>
-                        <option value="11">11H (Digital)</option>
-                        <option value="12">12H (Midi)</option>
-                        <option value="13">13H (Aprem 1)</option>
-                        <option value="14">14H (Digital)</option>
-                        <option value="15">15H (Digital)</option>
-                        <option value="16">16H (Aprem 2)</option>
-                        <option value="17">17H (Digital)</option>
-                        <option value="18">18H (National)</option>
-                        <option value="19">19H (Digital)</option>
-                        <option value="20">20H (Digital)</option>
-                        <option value="21">21H (Soir)</option>
-                        <option value="22">22H (Night)</option>
-                        <option value="23">23H (Clôture)</option>
-                    </select>
-                </div>
             </div>
+
+            <div class="input-group">
+                <label>Sélectionne l'Heure du Tirage :</label>
+                <div class="hours-grid" id="hoursGrid">
+                    <button type="button" class="hour-btn" data-hour="7">07H</button>
+                    <button type="button" class="hour-btn" data-hour="8">08H</button>
+                    <button type="button" class="hour-btn active" data-hour="10">10H</button>
+                    <button type="button" class="hour-btn" data-hour="11">11H</button>
+                    <button type="button" class="hour-btn" data-hour="12">12H</button>
+                    <button type="button" class="hour-btn" data-hour="13">13H</button>
+                    <button type="button" class="hour-btn" data-hour="14">14H</button>
+                    <button type="button" class="hour-btn" data-hour="15">15H</button>
+                    <button type="button" class="hour-btn" data-hour="16">16H</button>
+                    <button type="button" class="hour-btn" data-hour="17">17H</button>
+                    <button type="button" class="hour-btn" data-hour="18">18H</button>
+                    <button type="button" class="hour-btn" data-hour="19">19H</button>
+                    <button type="button" class="hour-btn" data-hour="20">20H</button>
+                    <button type="button" class="hour-btn" data-hour="21">21H</button>
+                    <button type="button" class="hour-btn" data-hour="22">22H</button>
+                    <button type="button" class="hour-btn" data-hour="23">23H</button>
+                </div>
+                <input type="hidden" id="hourCoeff" value="10">
+            </div>
+
             <button id="btnCalculate" class="btn-primary">Générer la Matrice Hybride</button>
         </section>
 
@@ -78,7 +81,7 @@
             <p class="hint">Saisis les 5 numéros séparés par des espaces ou virgules :</p>
             <div class="input-group">
                 <label for="drawLabel">Créneau (ex: 07H, 08H, 10H...)</label>
-                <input type="text" id="drawLabel" placeholder="Ex: 07H">
+                <input type="text" id="drawLabel" placeholder="Ex: 10H">
             </div>
             <div class="input-group">
                 <label for="inputWinners">5 Gagnants</label>
