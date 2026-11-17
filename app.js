@@ -1,264 +1,210 @@
+// Initialisation avec tes derniers tirages connus (21h, 22h, 23h)
+const DEFAULT_HISTORY = [
+    { label: "23H", winners: [3, 20, 13, 50, 25], machines: [30, 86, 51, 46, 26] },
+    { label: "22H", winners: [20, 30, 13, 87, 59], machines: [22, 90, 35, 80, 3] },
+    { label: "21H", winners: [60, 16, 51, 48, 41], machines: [71, 24, 4, 5, 57] }
+];
+
+let drawHistory = JSON.parse(localStorage.getItem('loto590_history')) || DEFAULT_HISTORY;
+
+// Enregistrement du Service Worker pour le mode hors-ligne (PWA)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW error:', err));
+    });
+}
+
+// Initialisation des dates du jour automatiquement
 document.addEventListener('DOMContentLoaded', () => {
-  // Éléments du DOM
-  const drawDateInput = document.getElementById('draw-date');
-  const drawTimeSelect = document.getElementById('draw-time');
-  const winningNumsInput = document.getElementById('winning-nums');
-  const machineNumsInput = document.getElementById('machine-nums');
-  const btnSaveDraw = document.getElementById('btn-save-draw');
-  const ocrFileInput = document.getElementById('ocr-file-input');
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
 
-  const predictTargetTimeSelect = document.getElementById('predict-target-time');
-  const btnPredict = document.getElementById('btn-predict');
-  const statusDiv = document.getElementById('status');
+    document.getElementById('dateCurrent').value = today.getDate();
+    document.getElementById('datePrev').value = yesterday.getDate();
 
-  // Conteneurs de résultats
-  const winningContainer = document.getElementById('winning-container');
-  const machineContainer = document.getElementById('machine-container');
-
-  const btnExport = document.getElementById('btn-export');
-  const btnClear = document.getElementById('btn-clear');
-  const historyList = document.getElementById('history-list');
-
-  // Initialisation de la date du jour par défaut
-  drawDateInput.value = new Date().toISOString().split('T')[0];
-
-  // Chargement des données au démarrage
-  let draws = JSON.parse(localStorage.getItem('lotto_draws')) || [];
-  renderHistory();
-
-  // -------------------------------------------------------------
-  // SCAN OCR : Importation et lecture automatique (Heure + Numéros)
-  // -------------------------------------------------------------
-  ocrFileInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    updateStatus('📷 Analyse de la capture d\'écran en cours...', '#38bdf8');
-
-    try {
-      const worker = await Tesseract.createWorker('fra');
-      const { data: { text } } = await worker.recognize(file);
-      await worker.terminate();
-
-      // 1. Détection de la TOUTE PREMIÈRE heure lisible sur l'image
-      const detectedTime = parseDrawTime(text);
-      if (detectedTime) {
-        drawTimeSelect.value = detectedTime;
-      }
-
-      // 2. Extraction des numéros valides (1 à 90)
-      const parsedNums = parseNumbers(text);
-
-      if (parsedNums.length === 0) {
-        updateStatus('⚠️ Aucun numéro valide n\'a pu être lu sur l\'image.', 'orange');
-        return;
-      }
-
-      // 3. Limitation aux 10 premiers numéros (5 Gagnants + 5 Machines)
-      const firstDrawNums = parsedNums.slice(0, 10);
-      const winningScanned = firstDrawNums.slice(0, 5);
-      const machineScanned = firstDrawNums.slice(5, 10);
-
-      winningNumsInput.value = winningScanned.map(formatTwoDigits).join(' ');
-      machineNumsInput.value = machineScanned.map(formatTwoDigits).join(' ');
-
-      const statusMsg = detectedTime 
-        ? `✅ Tirage ${detectedTime} & numéros détectés !`
-        : '✅ Numéros analysés ! Vérifiez l\'horaire puis sauvegardez.';
-
-      updateStatus(statusMsg, '#4ade80');
-    } catch (error) {
-      console.error(error);
-      updateStatus('❌ Erreur lors de la lecture de l\'image.', '#ef4444');
-    }
-  });
-
-  // -------------------------------------------------------------
-  // 1. SAUVEGARDER UN TIRAGE
-  // -------------------------------------------------------------
-  btnSaveDraw.addEventListener('click', () => {
-    const date = drawDateInput.value;
-    const time = drawTimeSelect.value;
-    const winning = parseNumbers(winningNumsInput.value);
-    const machine = parseNumbers(machineNumsInput.value);
-
-    if (winning.length === 0) {
-      updateStatus('⚠️ Veuillez saisir au moins les numéros gagnants.', 'orange');
-      return;
-    }
-
-    const newDraw = { id: Date.now(), date, time, winning, machine };
-    draws.unshift(newDraw);
-    localStorage.setItem('lotto_draws', JSON.stringify(draws));
-
-    winningNumsInput.value = '';
-    machineNumsInput.value = '';
-    ocrFileInput.value = '';
-    updateStatus(`✅ Tirage du ${date} (${time}) enregistré.`, '#4ade80');
     renderHistory();
-  });
+    generateHybridPrediction();
+});
 
-  // -------------------------------------------------------------
-  // 2. CALCULER LA PRÉDICTION SÉPARÉE (GAGNANT ET MACHINE)
-  // -------------------------------------------------------------
-  btnPredict.addEventListener('click', () => {
-    const targetTime = predictTargetTimeSelect.value;
+// Écouteurs d'événements
+document.getElementById('btnCalculate').addEventListener('click', generateHybridPrediction);
+document.getElementById('btnAddDraw').addEventListener('click', addNewDraw);
+document.getElementById('btnReset').addEventListener('click', () => {
+    drawHistory = [...DEFAULT_HISTORY];
+    saveHistory();
+    renderHistory();
+    generateHybridPrediction();
+});
 
-    if (draws.length === 0) {
-      updateStatus('⚠️ Aucun tirage enregistré dans l\'historique.', 'orange');
-      return;
-    }
+// Formate un nombre sur 2 chiffres (ex: 3 -> "03")
+function pad(n) {
+    return n < 10 ? '0' + n : '' + n;
+}
 
-    // Filtrage des tirages enregistrés pour l'horaire sélectionné
-    const filteredDraws = draws.filter(d => d.time === targetTime);
+// Clamp un nombre entre 1 et 90
+function normalizeLoto(num) {
+    let val = Math.abs(Math.round(num)) % 90;
+    return val === 0 ? 90 : val;
+}
 
-    if (filteredDraws.length === 0) {
-      updateStatus(`⚠️ Aucun historique disponible pour l'horaire ${targetTime}.`, 'orange');
-      return;
-    }
+// Moteur de calcul hybride
+function generateHybridPrediction() {
+    const dCurr = parseFloat(document.getElementById('dateCurrent').value) || 17;
+    const dPrev = parseFloat(document.getElementById('datePrev').value) || 16;
+    const hour = parseFloat(document.getElementById('hourCoeff').value) || 13;
 
-    // Calcul des prédictions pour 5 Gagnants et 5 Machines
-    const predWinning = calculateGroupPrediction(filteredDraws, 'winning');
-    const predMachine = calculateGroupPrediction(filteredDraws, 'machine');
+    // 1. Racine Mathématique : (Date / Veille) * (Heure / 2026)
+    const rawCoeff = (dCurr / dPrev) * (hour / 2026);
+    const coeffStr = rawCoeff.toFixed(6);
+    document.getElementById('formulaOutput').textContent = 
+        `(${dCurr}/${dPrev}) × (${hour}/2026) = ${coeffStr}`;
 
-    // Affichage des deux résultats
-    displayPredictionGroup(winningContainer, predWinning, '#facc15');
-    displayPredictionGroup(machineContainer, predMachine, '#4ade80');
+    // Extraction des paires décimales de la racine
+    const decimals = coeffStr.split('.')[1] || "123456";
+    let seedNumbers = [
+        normalizeLoto(parseInt(decimals.substring(0, 2))),
+        normalizeLoto(parseInt(decimals.substring(2, 4))),
+        normalizeLoto(parseInt(decimals.substring(4, 6)))
+    ];
 
-    updateStatus(`🎯 Prédiction générée pour ${targetTime} (${filteredDraws.length} tirage(s) analysé(s))`, '#4ade80');
-  });
+    // 2. Analyse statistique sur les 3 derniers tirages (Dizaines en retard)
+    const recentDraws = drawHistory.slice(0, 3);
+    const dizaineCounts = Array(9).fill(0); // 0->1-10, 1->11-20 ... 8->81-90
+    let lastMachines = recentDraws.length > 0 ? recentDraws[0].machines : [30, 51, 26];
+    let lastWinners = recentDraws.length > 0 ? recentDraws[0].winners : [3, 20, 25];
 
-  // Fonction de calcul statistique pour un groupe donné (winning ou machine)
-  function calculateGroupPrediction(drawList, key) {
-    const freqMap = {};
-    for (let i = 1; i <= 90; i++) freqMap[i] = 0;
-
-    drawList.forEach(draw => {
-      const nums = draw[key] || [];
-      nums.forEach(num => {
-        if (freqMap[num] !== undefined) freqMap[num]++;
-      });
+    recentDraws.forEach(draw => {
+        draw.winners.forEach(num => {
+            const idx = Math.min(8, Math.floor((num - 1) / 10));
+            dizaineCounts[idx]++;
+        });
     });
 
-    // Tri des 90 numéros par fréquence décroissante
-    const sortedNums = Object.keys(freqMap)
-      .map(Number)
-      .sort((a, b) => freqMap[b] - freqMap[a]);
+    // Repérer les dizaines les moins sorties (retardataires)
+    let coldDizaines = [];
+    dizaineCounts.forEach((count, idx) => {
+        if (count === 0) coldDizaines.push(idx);
+    });
+    if (coldDizaines.length === 0) {
+        const minCount = Math.min(...dizaineCounts);
+        dizaineCounts.forEach((c, idx) => { if (c === minCount) coldDizaines.push(idx); });
+    }
 
-    // Sélection de 5 numéros distincts (3 plus chauds, 1 moyen, 1 froid)
-    const prediction = [];
-    const pickUnique = (index) => {
-      let targetIndex = index;
-      while (prediction.includes(sortedNums[targetIndex]) && targetIndex < sortedNums.length) {
-        targetIndex++;
-      }
-      if (sortedNums[targetIndex] !== undefined) {
-        prediction.push(sortedNums[targetIndex]);
-      }
-    };
+    // 3. Construction de la grille Gagnants (Hybride : Formule + Voisinage + Dizaine froide)
+    let finalWinners = new Set();
 
-    pickUnique(0); // 1er chaud
-    pickUnique(1); // 2e chaud
-    pickUnique(2); // 3e chaud
-    pickUnique(Math.floor(sortedNums.length / 2)); // Moyen
-    pickUnique(sortedNums.length - 1); // Froid
+    // Base issue de la formule
+    finalWinners.add(seedNumbers[0]);
 
-    return prediction;
-  }
+    // Voisinage (+/- 1 ou +/- 2) d'un numéro fort du dernier tirage
+    const pivotWinner = lastWinners[Math.floor(dCurr % lastWinners.length)];
+    finalWinners.add(normalizeLoto(pivotWinner + (hour % 2 === 0 ? 1 : -1)));
 
-  // -------------------------------------------------------------
-  // FONCTIONS UTILITAIRES & AFFICHAGE
-  // -------------------------------------------------------------
+    // Transfert direct depuis les machines du tirage précédent
+    const transferMachine = lastMachines[hour % lastMachines.length];
+    finalWinners.add(transferMachine);
 
-  function parseNumbers(text) {
-    const matches = text.match(/\b([1-9]|[1-8][0-9]|90)\b/g);
-    return matches ? Array.from(new Set(matches.map(Number))) : [];
-  }
+    // Injection dans les dizaines froides (loi d'équilibre)
+    coldDizaines.slice(0, 2).forEach((dIdx, i) => {
+        const baseInDizaine = (dIdx * 10) + ((dCurr + i * 3) % 9) + 1;
+        finalWinners.add(normalizeLoto(baseInDizaine));
+    });
 
-  function parseDrawTime(text) {
-    const match = text.toUpperCase().match(/\b(07H|08H|10H|13H|16H|18H)\b/);
-    return match ? match[0] : null;
-  }
+    // Compléter jusqu'à 5 numéros uniques si besoin
+    let fallbackStep = 7;
+    while (finalWinners.size < 5) {
+        finalWinners.add(normalizeLoto(seedNumbers[1] + fallbackStep));
+        fallbackStep += 11;
+    }
 
-  function formatTwoDigits(num) {
-    return String(num).padStart(2, '0');
-  }
+    // 4. Construction des Machines associées (Voisins des pivots)
+    let finalMachines = new Set();
+    finalWinners.forEach(w => {
+        if (finalMachines.size < 5) {
+            let candidate = normalizeLoto(w + (w % 2 === 0 ? 2 : -2));
+            if (!finalWinners.has(candidate)) {
+                finalMachines.add(candidate);
+            }
+        }
+    });
+    let mStep = 4;
+    while (finalMachines.size < 5) {
+        let cand = normalizeLoto(seedNumbers[2] + mStep);
+        if (!finalWinners.has(cand)) finalMachines.add(cand);
+        mStep += 9;
+    }
 
-  function displayPredictionGroup(container, numbers, textColor) {
+    // Affichage des boules
+    renderBalls('predictedWinners', Array.from(finalWinners).sort((a, b) => a - b), 'ball-winner');
+    renderBalls('predictedMachines', Array.from(finalMachines).sort((a, b) => a - b), 'ball-machine');
+
+    // Texte explicatif de la logique appliquée
+    const coldLabels = coldDizaines.map(d => `${d * 10 + 1}-${(d + 1) * 10}`).join(', ');
+    document.getElementById('statsAnalysis').innerHTML = `
+        <strong>Logique appliquée :</strong><br>
+        • Dizaines en retard ciblées : <b>${coldLabels}</b><br>
+        • Pivot de transfert machine : <b>${pad(transferMachine)}</b><br>
+        • Voisinage actif autour de : <b>${pad(pivotWinner)}</b>
+    `;
+}
+
+function renderBalls(containerId, numbers, cssClass) {
+    const container = document.getElementById(containerId);
     container.innerHTML = '';
     numbers.forEach(num => {
-      const ball = document.createElement('span');
-      ball.className = 'num-ball';
-      ball.style.color = textColor;
-      ball.textContent = formatTwoDigits(num);
-      container.appendChild(ball);
+        const div = document.createElement('div');
+        div.className = `ball ${cssClass}`;
+        div.textContent = pad(num);
+        container.appendChild(div);
     });
-  }
+}
 
-  function updateStatus(msg, color) {
-    statusDiv.textContent = msg;
-    statusDiv.style.color = color;
-  }
+// Ajout manuel rapide d'un résultat
+function parseInputNumbers(str) {
+    return str.trim()
+        .split(/[\s,;-]+/)
+        .map(n => parseInt(n, 10))
+        .filter(n => !isNaN(n) && n >= 1 && n <= 90);
+}
 
-  function deleteDraw(id) {
-    draws = draws.filter(d => d.id !== id);
-    localStorage.setItem('lotto_draws', JSON.stringify(draws));
+function addNewDraw() {
+    const label = document.getElementById('drawLabel').value.trim() || "Tirage";
+    const winners = parseInputNumbers(document.getElementById('inputWinners').value);
+    const machines = parseInputNumbers(document.getElementById('inputMachines').value);
+
+    if (winners.length !== 5 || machines.length !== 5) {
+        alert("Veuillez saisir exactement 5 numéros valides (entre 1 et 90) pour les gagnants et 5 pour les machines.");
+        return;
+    }
+
+    drawHistory.unshift({ label, winners, machines });
+    if (drawHistory.length > 15) drawHistory.pop();
+
+    saveHistory();
     renderHistory();
-    updateStatus('🗑️ Tirage supprimé.', '#ef4444');
-  }
+    generateHybridPrediction();
 
-  function renderHistory() {
-    historyList.innerHTML = '';
-    draws.forEach(draw => {
-      const li = document.createElement('li');
-      li.style.cssText = 'padding: 8px 0; border-bottom: 1px solid #334155; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;';
-      
-      const winningStr = draw.winning.map(formatTwoDigits).join(' ');
-      const machineStr = draw.machine.length > 0 ? draw.machine.map(formatTwoDigits).join(' ') : '-';
+    document.getElementById('drawLabel').value = '';
+    document.getElementById('inputWinners').value = '';
+    document.getElementById('inputMachines').value = '';
+}
 
-      const contentDiv = document.createElement('div');
-      contentDiv.innerHTML = `
-        <div style="color: #94a3b8; font-weight: bold;">${draw.date} (${draw.time})</div>
-        <div style="color: #facc15;">Gagnants : ${winningStr}</div>
-        <div style="color: #4ade80;">Machines : ${machineStr}</div>
-      `;
+function saveHistory() {
+    localStorage.setItem('loto590_history', JSON.stringify(drawHistory));
+}
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.textContent = '✕';
-      deleteBtn.style.cssText = 'background: transparent; color: #ef4444; border: none; font-size: 1.1rem; cursor: pointer; padding: 0 8px;';
-      deleteBtn.addEventListener('click', () => deleteDraw(draw.id));
-
-      li.appendChild(contentDiv);
-      li.appendChild(deleteBtn);
-      historyList.appendChild(li);
+function renderHistory() {
+    const list = document.getElementById('historyList');
+    list.innerHTML = '';
+    drawHistory.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.innerHTML = `
+            <strong>${item.label}</strong> — 
+            Gagnants : <span style="color:#ea580c;font-weight:bold;">${item.winners.map(pad).join(' - ')}</span> | 
+            Machines : <span style="color:#0d9488;font-weight:bold;">${item.machines.map(pad).join(' - ')}</span>
+        `;
+        list.appendChild(div);
     });
-  }
-
-  // Exporter l'historique au format .txt
-  btnExport.addEventListener('click', () => {
-    if (draws.length === 0) {
-      updateStatus('⚠️ Aucun tirage à exporter.', 'orange');
-      return;
-    }
-    let content = "HISTORIQUE DES TIRAGES LOTO\n\n";
-    draws.forEach(d => {
-      content += `${d.date} | ${d.time} | Gagnants: ${d.winning.map(formatTwoDigits).join(' ')} | Machines: ${d.machine.map(formatTwoDigits).join(' ')}\n`;
-    });
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `lotto_draws_${drawDateInput.value}.txt`;
-    a.click();
-  });
-
-  // Effacer tout l'historique
-  btnClear.addEventListener('click', () => {
-    if (confirm("Voulez-vous supprimer tout l'historique des tirages ?")) {
-      draws = [];
-      localStorage.removeItem('lotto_draws');
-      renderHistory();
-      updateStatus('🗑️ Historique réinitialisé.', '#ef4444');
-    }
-  });
-});
+}
