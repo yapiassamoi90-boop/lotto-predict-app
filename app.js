@@ -63,8 +63,8 @@ function normalizeLoto(num) {
 
 // Moteur de calcul hybride avancé avec pondération par récence et voisinage
 function generateHybridPrediction() {
-    const dCurr = parseFloat(document.getElementById('dateCurrent').value) || 17;
-    const dPrev = parseFloat(document.getElementById('datePrev').value) || 16;
+    const dCurr = parseFloat(document.getElementById('dateCurrent').value) || 18;
+    const dPrev = parseFloat(document.getElementById('datePrev').value) || 17;
     const hour = parseFloat(document.getElementById('hourCoeff').value) || 10;
 
     // 1. Racine Mathématique : (Date / Veille) * (Heure / 2026)
@@ -86,19 +86,15 @@ function generateHybridPrediction() {
 
     // 2. Analyse de l'historique avec Poids par Récence & Filtre de Voisine (±1)
     drawHistory.slice(0, 10).forEach((draw, index) => {
-        // Plus le tirage est récent (index 0 = dernier tirage), plus son poids est fort
         let poidsRecence = index === 0 ? 3.0 : (index < 3 ? 2.0 : 1.0);
 
-        // Score sur les gagnants
         draw.winners.forEach(num => {
             scores[num] += 2 * poidsRecence;
         });
 
-        // Score renforcé sur les machines (pivots de transfert)
         draw.machines.forEach(num => {
             scores[num] += 3.5 * poidsRecence;
 
-            // Filtre de voisinage automatique (±1) sur les 3 derniers tirages pour contrer les quasi-ratés
             if (index < 3) {
                 let voisinMoins = num === 1 ? 90 : num - 1;
                 let voisinPlus = num === 90 ? 1 : num + 1;
@@ -108,7 +104,6 @@ function generateHybridPrediction() {
         });
     });
 
-    // Injection des graines mathématiques de la formule dans les scores
     seedNumbers.forEach(seed => {
         scores[seed] += 5.0;
     });
@@ -131,7 +126,6 @@ function generateHybridPrediction() {
         dizaineCounts.forEach((c, idx) => { if (c === minCount) coldDizaines.push(idx); });
     }
 
-    // Boost des scores pour les numéros situés dans les dizaines froides
     coldDizaines.forEach(dIdx => {
         for (let i = 1; i <= 10; i++) {
             let numInCold = (dIdx * 10) + i;
@@ -146,11 +140,10 @@ function generateHybridPrediction() {
     }
     classement.sort((a, b) => b.score - a.score);
 
-    // Extraction des 5 meilleurs gagnants et des 5 pivots machines suivants
     let finalWinners = classement.slice(0, 5).map(item => item.numero);
     let finalMachines = classement.slice(5, 10).map(item => item.numero);
 
-    // 5. Calcul de l'Indice de Confiance du signal
+    // 5. Calcul de l'Indice de Confianza / Convergence
     const top5Moyenne = classement.slice(0, 5).reduce((acc, item) => acc + item.score, 0) / 5;
     const moyenneGlobale = classement.reduce((acc, item) => acc + item.score, 0) / 90;
     let ratio = moyenneGlobale > 0 ? (top5Moyenne / moyenneGlobale) : 1;
@@ -160,13 +153,13 @@ function generateHybridPrediction() {
     renderBalls('predictedWinners', finalWinners.sort((a, b) => a - b), 'ball-winner');
     renderBalls('predictedMachines', finalMachines.sort((a, b) => a - b), 'ball-machine');
 
-    // Texte explicatif et badge de confiance
+    // Texte explicatif et badge de l'Indice de Convergence injecté dans #statsAnalysis
     const coldLabels = coldDizaines.map(d => `${d * 10 + 1}-${(d + 1) * 10}`).join(', ');
     const badgeColor = indiceConfiance >= 60 ? '#16a34a' : '#d97706';
     const badgeText = indiceConfiance >= 60 ? '🟢 Signal Fort (Forte convergence)' : '🟠 Dispersion modérée';
 
     document.getElementById('statsAnalysis').innerHTML = `
-        <div style="margin-bottom: 8px; font-weight: bold; color: ${badgeColor};">
+        <div style="margin-bottom: 8px; font-weight: bold; color: ${badgeColor}; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 6px;">
             Indice de convergence : ${indiceConfiance}% — ${badgeText}
         </div>
         <strong>Logique appliquée (${pad(hour)}H) :</strong><br>
@@ -223,7 +216,7 @@ function saveHistory() {
 function renderHistory() {
     const list = document.getElementById('historyList');
     list.innerHTML = '';
-    drawHistory.forEach(item => {
+    drawHistory.drawHistory?.forEach ? drawHistory.forEach(item => {
         const div = document.createElement('div');
         div.className = 'history-item';
         div.innerHTML = `
@@ -232,5 +225,5 @@ function renderHistory() {
             Machines : <span style="color:#0d9488;font-weight:bold;">${item.machines.map(pad).join(' - ')}</span>
         `;
         list.appendChild(div);
-    });
+    }) : null;
 }
