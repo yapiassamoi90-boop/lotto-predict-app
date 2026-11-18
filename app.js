@@ -36,10 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Gestionnaire pour l'importation d'image (OCR)
+    // Gestionnaire pour l'importation de plusieurs images (OCR)
     const imageInput = document.getElementById('imageUploadInput');
     if (imageInput) {
-        imageInput.addEventListener('change', handleImageUpload);
+        imageInput.addEventListener('change', handleMultipleImageUpload);
     }
 
     renderHistory();
@@ -185,61 +185,96 @@ function renderBalls(containerId, numbers, cssClass) {
     });
 }
 
-// Fonction de lecture d'image (OCR via Tesseract.js)
-async function handleImageUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+// Gestion de l'upload de plusieurs images avec analyseur multi-tirages
+async function handleMultipleImageUpload(event) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
     const statusDiv = document.getElementById('ocrStatus');
-    statusDiv.textContent = "🔍 Analyse de l'image en cours...";
+    let addedCount = 0;
 
-    try {
-        // Utilisation de Tesseract pour lire le texte de l'image
-        const { data: { text } } = await Tesseract.recognize(file, 'eng', {
-            logger: m => {
-                if (m.status === 'recognizing text') {
-                    statusDiv.textContent = `🔍 Analyse : ${Math.round(m.progress * 100)}%`;
+    for (let i = 0; i < files.length; i++) {
+        statusDiv.textContent = `🔍 Analyse de l'image ${i + 1} sur ${files.length}...`;
+        try {
+            const { data: { text } } = await Tesseract.recognize(files[i], 'eng');
+            
+            // Découpage intelligent du texte par blocs d'heures (ex: "08H", "10H", etc.)
+            // Chaque bloc contient potentiellement des gagnants et machines
+            const blocks = parseMultipleDrawsFromText(text);
+            
+            blocks.forEach(draw => {
+                // Vérifie si ce tirage n'existe pas déjà dans l'historique récent
+                const exists = drawHistory.some(d => d.label === draw.label && d.winners.toString() === draw.winners.toString());
+                if (!exists && draw.winners.length === 5 && draw.machines.length === 5) {
+                    drawHistory.unshift(draw);
+                    addedCount++;
                 }
-            }
-        });
-
-        statusDiv.textContent = "✅ Analyse terminée ! Extraction des numéros...";
-        parseOcrResult(text);
-    } catch (error) {
-        console.error(error);
-        statusDiv.textContent = "❌ Erreur lors de l'analyse de l'image.";
-    }
-}
-
-// Analyse intelligente du texte extrait pour remplir les champs
-function parseOcrResult(text) {
-    const statusDiv = document.getElementById('ocrStatus');
-    
-    // Recherche d'une heure (ex: 07H, 08H, 10H)
-    const hourMatch = text.match(/([0-2]?[0-9])\s*H/i);
-    if (hourMatch) {
-        document.getElementById('drawLabel').value = hourMatch[1].padStart(2, '0') + 'H';
+            });
+        } catch (err) {
+            console.error("Erreur OCR sur l'image", err);
+        }
     }
 
-    // Extraction de tous les nombres valides entre 1 et 90 trouvés dans l'image
-    const allNumbers = text.match(/\b([1-9]|[1-8][0-9]|90)\b/g)
-        .map(n => parseInt(n, 10))
-        .filter(n => n >= 1 && n <= 90);
-
-    // On prend les 5 premiers pour les gagnants et les 5 suivants pour les machines (s'ils existent)
-    if (allNumbers.length >= 10) {
-        const winners = allNumbers.slice(0, 5);
-        const machines = allNumbers.slice(5, 10);
-
-        document.getElementById('inputWinners').value = winners.map(pad).join(' ');
-        document.getElementById('inputMachines').value = machines.map(pad).join(' ');
-        statusDiv.textContent = "✨ Numéros extraits et insérés avec succès ! Vérifie et clique sur Ajouter.";
+    if (addedCount > 0) {
+        if (drawHistory.length > 20) drawHistory = drawHistory.slice(0, 20);
+        saveHistory();
+        renderHistory();
+        generateHybridPrediction();
+        statusDiv.textContent = `✨ Succès ! ${addedCount} nouveau(x) tirage(s) extrait(s) et ajoutés à l'historique !`;
     } else {
-        statusDiv.textContent = "⚠️ Image lue, mais impossible de trouver 10 numéros clairement. Saisis-les manuellement si besoin.";
+        statusDiv.textContent = "⚠️ Aucun nouveau tirage valide n'a pu être extrait automatiquement. Vérifie les images.";
     }
 }
 
-// Ajout manuel ou automatique rapide d'un résultat
+// Parseur multi-blocs pour extraire plusieurs heures et listes de nombres d'une seule image
+function parseMultipleDrawsFromText(text) {
+    let draws = [];
+    // Sépare le texte par lignes ou blocs contenant une heure (ex: 07H, 08H, 10H...)
+    // Recherche des motifs du type "08H" ou "10 H"
+    const lines = text.split('\n');
+    let currentLabel = null;
+    let accumulatedNumbers = [];
+
+    lines.forEach(line => {
+        const hourMatch = line.match(/\b([0-2]?[0-9])\s*H\b/i);
+        if (hourMatch) {
+            // Si on détecte une nouvelle heure, on sauvegarde la précédente s'il y a assez de numéros
+            if (currentLabel && accumulatedNumbers.length >= 10) {
+                draws.push({
+                    label: currentLabel,
+                    winners: accumulatedNumbers.slice(0, 5),
+                    machines: accumulatedNumbers.slice(5, 10)
+                });
+                accumulatedNumbers = [];
+            }
+            currentLabel = hourMatch[1].padStart(2, '0') + 'H';
+        }
+
+        // Extrait tous les numéros valides de 1 à 90 sur cette ligne
+        const nums = line.match(/\b([1-9]|[1-8][0-9]|90)\b/g);
+        if (nums) {
+            nums.forEach(n => {
+                let val = parseInt(n, 10);
+                if (val >= 1 && val <= 90) {
+                    accumulatedNumbers.push(val);
+                }
+            });
+        }
+    });
+
+    // Enregistre le dernier bloc en cours
+    if (currentLabel && accumulatedNumbers.length >= 10) {
+        draws.push({
+            label: currentLabel,
+            winners: accumulatedNumbers.slice(0, 5),
+            machines: accumulatedNumbers.slice(5, 10)
+        });
+    }
+
+    return draws;
+}
+
+// Ajout manuel classique
 function parseInputNumbers(str) {
     return str.trim()
         .split(/[\s,;-]+/)
@@ -253,12 +288,12 @@ function addNewDraw() {
     const machines = parseInputNumbers(document.getElementById('inputMachines').value);
 
     if (winners.length !== 5 || machines.length !== 5) {
-        alert("Veuillez saisir ou scanner exactement 5 numéros valides (entre 1 et 90) pour les gagnants et 5 pour les machines.");
+        alert("Veuillez saisir exactement 5 numéros valides (entre 1 et 90) pour les gagnants et 5 pour les machines.");
         return;
     }
 
     drawHistory.unshift({ label, winners, machines });
-    if (drawHistory.length > 15) drawHistory.pop();
+    if (drawHistory.length > 20) drawHistory.pop();
 
     saveHistory();
     renderHistory();
@@ -282,7 +317,7 @@ function renderHistory() {
         div.className = 'history-item';
         div.innerHTML = `
             <strong>${item.label}</strong> — 
-            Gagnants : <span style="color:#ea580c;font-weight:bold;">${item.winners.map(pad).join(' - ')}</span> | 
+            Gagnants : <span style="color:#ea580c;font-weight:bold;">${item.winners.map(pad).joint ? item.winners.map(pad).join(' - ') : item.winners.join(' - ')}</span> | 
             Machines : <span style="color:#0d9488;font-weight:bold;">${item.machines.map(pad).join(' - ')}</span>
         `;
         list.appendChild(div);
