@@ -36,6 +36,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Gestionnaire pour l'importation d'image (OCR)
+    const imageInput = document.getElementById('imageUploadInput');
+    if (imageInput) {
+        imageInput.addEventListener('change', handleImageUpload);
+    }
+
     renderHistory();
     generateHybridPrediction();
 });
@@ -143,7 +149,7 @@ function generateHybridPrediction() {
     let finalWinners = classement.slice(0, 5).map(item => item.numero);
     let finalMachines = classement.slice(5, 10).map(item => item.numero);
 
-    // 5. Calcul de l'Indice de Confianza / Convergence
+    // 5. Calcul de l'Indice de Convergence
     const top5Moyenne = classement.slice(0, 5).reduce((acc, item) => acc + item.score, 0) / 5;
     const moyenneGlobale = classement.reduce((acc, item) => acc + item.score, 0) / 90;
     let ratio = moyenneGlobale > 0 ? (top5Moyenne / moyenneGlobale) : 1;
@@ -153,7 +159,7 @@ function generateHybridPrediction() {
     renderBalls('predictedWinners', finalWinners.sort((a, b) => a - b), 'ball-winner');
     renderBalls('predictedMachines', finalMachines.sort((a, b) => a - b), 'ball-machine');
 
-    // Texte explicatif et badge de l'Indice de Convergence injecté dans #statsAnalysis
+    // Texte explicatif et badge de l'Indice de Convergence
     const coldLabels = coldDizaines.map(d => `${d * 10 + 1}-${(d + 1) * 10}`).join(', ');
     const badgeColor = indiceConfiance >= 60 ? '#16a34a' : '#d97706';
     const badgeText = indiceConfiance >= 60 ? '🟢 Signal Fort (Forte convergence)' : '🟠 Dispersion modérée';
@@ -179,7 +185,61 @@ function renderBalls(containerId, numbers, cssClass) {
     });
 }
 
-// Ajout manuel rapide d'un résultat
+// Fonction de lecture d'image (OCR via Tesseract.js)
+async function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const statusDiv = document.getElementById('ocrStatus');
+    statusDiv.textContent = "🔍 Analyse de l'image en cours...";
+
+    try {
+        // Utilisation de Tesseract pour lire le texte de l'image
+        const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+            logger: m => {
+                if (m.status === 'recognizing text') {
+                    statusDiv.textContent = `🔍 Analyse : ${Math.round(m.progress * 100)}%`;
+                }
+            }
+        });
+
+        statusDiv.textContent = "✅ Analyse terminée ! Extraction des numéros...";
+        parseOcrResult(text);
+    } catch (error) {
+        console.error(error);
+        statusDiv.textContent = "❌ Erreur lors de l'analyse de l'image.";
+    }
+}
+
+// Analyse intelligente du texte extrait pour remplir les champs
+function parseOcrResult(text) {
+    const statusDiv = document.getElementById('ocrStatus');
+    
+    // Recherche d'une heure (ex: 07H, 08H, 10H)
+    const hourMatch = text.match(/([0-2]?[0-9])\s*H/i);
+    if (hourMatch) {
+        document.getElementById('drawLabel').value = hourMatch[1].padStart(2, '0') + 'H';
+    }
+
+    // Extraction de tous les nombres valides entre 1 et 90 trouvés dans l'image
+    const allNumbers = text.match(/\b([1-9]|[1-8][0-9]|90)\b/g)
+        .map(n => parseInt(n, 10))
+        .filter(n => n >= 1 && n <= 90);
+
+    // On prend les 5 premiers pour les gagnants et les 5 suivants pour les machines (s'ils existent)
+    if (allNumbers.length >= 10) {
+        const winners = allNumbers.slice(0, 5);
+        const machines = allNumbers.slice(5, 10);
+
+        document.getElementById('inputWinners').value = winners.map(pad).join(' ');
+        document.getElementById('inputMachines').value = machines.map(pad).join(' ');
+        statusDiv.textContent = "✨ Numéros extraits et insérés avec succès ! Vérifie et clique sur Ajouter.";
+    } else {
+        statusDiv.textContent = "⚠️ Image lue, mais impossible de trouver 10 numéros clairement. Saisis-les manuellement si besoin.";
+    }
+}
+
+// Ajout manuel ou automatique rapide d'un résultat
 function parseInputNumbers(str) {
     return str.trim()
         .split(/[\s,;-]+/)
@@ -193,7 +253,7 @@ function addNewDraw() {
     const machines = parseInputNumbers(document.getElementById('inputMachines').value);
 
     if (winners.length !== 5 || machines.length !== 5) {
-        alert("Veuillez saisir exactement 5 numéros valides (entre 1 et 90) pour les gagnants et 5 pour les machines.");
+        alert("Veuillez saisir ou scanner exactement 5 numéros valides (entre 1 et 90) pour les gagnants et 5 pour les machines.");
         return;
     }
 
@@ -207,6 +267,7 @@ function addNewDraw() {
     document.getElementById('drawLabel').value = '';
     document.getElementById('inputWinners').value = '';
     document.getElementById('inputMachines').value = '';
+    document.getElementById('ocrStatus').textContent = '';
 }
 
 function saveHistory() {
@@ -216,7 +277,7 @@ function saveHistory() {
 function renderHistory() {
     const list = document.getElementById('historyList');
     list.innerHTML = '';
-    drawHistory.drawHistory?.forEach ? drawHistory.forEach(item => {
+    drawHistory.forEach(item => {
         const div = document.createElement('div');
         div.className = 'history-item';
         div.innerHTML = `
@@ -225,5 +286,5 @@ function renderHistory() {
             Machines : <span style="color:#0d9488;font-weight:bold;">${item.machines.map(pad).join(' - ')}</span>
         `;
         list.appendChild(div);
-    }) : null;
+    });
 }
