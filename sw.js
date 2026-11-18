@@ -1,4 +1,4 @@
-const CACHE_NAME = 'loto590-hybrid-v9';
+const CACHE_NAME = 'loto590-hybrid-v11';
 const ASSETS = [
     './',
     './index.html',
