@@ -1,5 +1,5 @@
-Const CACHE_NAME = 'loto590-hybrid-v4';
-Const ASSETS = [
+const CACHE_NAME = 'loto590-hybrid-v5';
+const ASSETS = [
     './',
     './index.html',
     './style.css',
@@ -9,26 +9,26 @@ Const ASSETS = [
     './icon-512.png'
 ];
 
-Self.addEventListener('install', (event) => {
-    Event.waitUntil(
-        Caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
     );
 });
 
-Self.addEventListener('activate', (event) => {
-    Event.waitUntil(
-        Caches.keys().then((keys) =>
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) =>
             Promise.all(
-                Keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+                keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
             )
         )
     );
 });
 
-Self.addEventListener('fetch', (event) => {
-    Event.respondWith(
-        Caches.match(event.request).then((response) => {
-            Return response || fetch(event.request);
+self.addEventListener('fetch', (event) => {
+    event.respondWith(
+        caches.match(event.request).then((response) => {
+            return response || fetch(event.request);
         })
     );
 });
