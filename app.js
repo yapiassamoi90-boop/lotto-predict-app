@@ -61,7 +61,7 @@ function normalizeLoto(num) {
     return val === 0 ? 90 : val;
 }
 
-// Moteur de calcul hybride
+// Moteur de calcul hybride avancé avec pondération par récence et voisinage
 function generateHybridPrediction() {
     const dCurr = parseFloat(document.getElementById('dateCurrent').value) || 17;
     const dPrev = parseFloat(document.getElementById('datePrev').value) || 16;
@@ -73,7 +73,7 @@ function generateHybridPrediction() {
     document.getElementById('formulaOutput').textContent = 
         `(${dCurr}/${dPrev}) × (${hour}/2026) = ${coeffStr}`;
 
-    // Extraction des paires décimales de la racine
+    // Extraction des paires décimales de la racine comme graines de base
     const decimals = coeffStr.split('.')[1] || "123456";
     let seedNumbers = [
         normalizeLoto(parseInt(decimals.substring(0, 2))),
@@ -81,20 +81,47 @@ function generateHybridPrediction() {
         normalizeLoto(parseInt(decimals.substring(4, 6)))
     ];
 
-    // 2. Analyse statistique sur les 3 derniers tirages (Dizaines en retard)
-    const recentDraws = drawHistory.slice(0, 3);
-    const dizaineCounts = Array(9).fill(0);
-    let lastMachines = recentDraws.length > 0 ? recentDraws[0].machines : [30, 51, 26];
-    let lastWinners = recentDraws.length > 0 ? recentDraws[0].winners : [3, 20, 25];
+    // Initialisation des scores pour les 90 numéros (index 1 à 90)
+    let scores = new Array(91).fill(0);
 
-    recentDraws.forEach(draw => {
+    // 2. Analyse de l'historique avec Poids par Récence & Filtre de Voisine (±1)
+    drawHistory.slice(0, 10).forEach((draw, index) => {
+        // Plus le tirage est récent (index 0 = dernier tirage), plus son poids est fort
+        let poidsRecence = index === 0 ? 3.0 : (index < 3 ? 2.0 : 1.0);
+
+        // Score sur les gagnants
+        draw.winners.forEach(num => {
+            scores[num] += 2 * poidsRecence;
+        });
+
+        // Score renforcé sur les machines (pivots de transfert)
+        draw.machines.forEach(num => {
+            scores[num] += 3.5 * poidsRecence;
+
+            // Filtre de voisinage automatique (±1) sur les 3 derniers tirages pour contrer les quasi-ratés
+            if (index < 3) {
+                let voisinMoins = num === 1 ? 90 : num - 1;
+                let voisinPlus = num === 90 ? 1 : num + 1;
+                scores[voisinMoins] += 1.5 * poidsRecence;
+                scores[voisinPlus] += 1.5 * poidsRecence;
+            }
+        });
+    });
+
+    // Injection des graines mathématiques de la formule dans les scores
+    seedNumbers.forEach(seed => {
+        scores[seed] += 5.0;
+    });
+
+    // 3. Analyse des dizaines froides (Loi d'équilibre)
+    const dizaineCounts = Array(9).fill(0);
+    drawHistory.slice(0, 5).forEach(draw => {
         draw.winners.forEach(num => {
             const idx = Math.min(8, Math.floor((num - 1) / 10));
             dizaineCounts[idx]++;
         });
     });
 
-    // Repérer les dizaines les moins sorties (retardataires)
     let coldDizaines = [];
     dizaineCounts.forEach((count, idx) => {
         if (count === 0) coldDizaines.push(idx);
@@ -104,61 +131,47 @@ function generateHybridPrediction() {
         dizaineCounts.forEach((c, idx) => { if (c === minCount) coldDizaines.push(idx); });
     }
 
-    // 3. Construction de la grille Gagnants (Hybride : Formule + Voisinage + Dizaine froide)
-    let finalWinners = new Set();
-
-    // Base issue de la formule
-    finalWinners.add(seedNumbers[0]);
-
-    // Voisinage (+/- 1) d'un numéro fort du dernier tirage
-    const pivotWinner = lastWinners[Math.floor(dCurr % lastWinners.length)];
-    finalWinners.add(normalizeLoto(pivotWinner + (hour % 2 === 0 ? 1 : -1)));
-
-    // Transfert direct depuis les machines du tirage précédent
-    const transferMachine = lastMachines[hour % lastMachines.length];
-    finalWinners.add(transferMachine);
-
-    // Injection dans les dizaines froides (loi d'équilibre)
-    coldDizaines.slice(0, 2).forEach((dIdx, i) => {
-        const baseInDizaine = (dIdx * 10) + ((dCurr + i * 3) % 9) + 1;
-        finalWinners.add(normalizeLoto(baseInDizaine));
-    });
-
-    // Compléter jusqu'à 5 numéros uniques si besoin
-    let fallbackStep = 7;
-    while (finalWinners.size < 5) {
-        finalWinners.add(normalizeLoto(seedNumbers[1] + fallbackStep));
-        fallbackStep += 11;
-    }
-
-    // 4. Construction des Machines associées (Voisins des pivots)
-    let finalMachines = new Set();
-    finalWinners.forEach(w => {
-        if (finalMachines.size < 5) {
-            let candidate = normalizeLoto(w + (w % 2 === 0 ? 2 : -2));
-            if (!finalWinners.has(candidate)) {
-                finalMachines.add(candidate);
-            }
+    // Boost des scores pour les numéros situés dans les dizaines froides
+    coldDizaines.forEach(dIdx => {
+        for (let i = 1; i <= 10; i++) {
+            let numInCold = (dIdx * 10) + i;
+            scores[numInCold] += 3.0;
         }
     });
-    let mStep = 4;
-    while (finalMachines.size < 5) {
-        let cand = normalizeLoto(seedNumbers[2] + mStep);
-        if (!finalWinners.has(cand)) finalMachines.add(cand);
-        mStep += 9;
+
+    // 4. Classement global des 90 numéros par score décroissant
+    let classement = [];
+    for (let i = 1; i <= 90; i++) {
+        classement.push({ numero: i, score: scores[i] });
     }
+    classement.sort((a, b) => b.score - a.score);
+
+    // Extraction des 5 meilleurs gagnants et des 5 pivots machines suivants
+    let finalWinners = classement.slice(0, 5).map(item => item.numero);
+    let finalMachines = classement.slice(5, 10).map(item => item.numero);
+
+    // 5. Calcul de l'Indice de Confiance du signal
+    const top5Moyenne = classement.slice(0, 5).reduce((acc, item) => acc + item.score, 0) / 5;
+    const moyenneGlobale = classement.reduce((acc, item) => acc + item.score, 0) / 90;
+    let ratio = moyenneGlobale > 0 ? (top5Moyenne / moyenneGlobale) : 1;
+    let indiceConfiance = Math.min(95, Math.max(30, Math.round(ratio * 25)));
 
     // Affichage des boules
-    renderBalls('predictedWinners', Array.from(finalWinners).sort((a, b) => a - b), 'ball-winner');
-    renderBalls('predictedMachines', Array.from(finalMachines).sort((a, b) => a - b), 'ball-machine');
+    renderBalls('predictedWinners', finalWinners.sort((a, b) => a - b), 'ball-winner');
+    renderBalls('predictedMachines', finalMachines.sort((a, b) => a - b), 'ball-machine');
 
-    // Texte explicatif de la logique appliquée
+    // Texte explicatif et badge de confiance
     const coldLabels = coldDizaines.map(d => `${d * 10 + 1}-${(d + 1) * 10}`).join(', ');
+    const badgeColor = indiceConfiance >= 60 ? '#16a34a' : '#d97706';
+    const badgeText = indiceConfiance >= 60 ? '🟢 Signal Fort (Forte convergence)' : '🟠 Dispersion modérée';
+
     document.getElementById('statsAnalysis').innerHTML = `
+        <div style="margin-bottom: 8px; font-weight: bold; color: ${badgeColor};">
+            Indice de convergence : ${indiceConfiance}% — ${badgeText}
+        </div>
         <strong>Logique appliquée (${pad(hour)}H) :</strong><br>
-        • Dizaines en retard ciblées : <b>${coldLabels}</b><br>
-        • Pivot de transfert machine : <b>${pad(transferMachine)}</b><br>
-        • Voisinage actif autour de : <b>${pad(pivotWinner)}</b>
+        • Dizaines froides ciblées : <b>${coldLabels}</b><br>
+        • Poids par récence & Voisins (±1) intégrés dans la matrice.
     `;
 }
 
