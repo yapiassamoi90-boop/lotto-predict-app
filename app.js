@@ -1,8 +1,9 @@
 // Initialisation avec tes derniers tirages connus
 const DEFAULT_HISTORY = [
-    { label: "23H", winners: [3, 20, 13, 50, 25], machines: [30, 86, 51, 46, 26] },
-    { label: "22H", winners: [20, 30, 13, 87, 59], machines: [22, 90, 35, 80, 3] },
-    { label: "21H", winners: [60, 16, 51, 48, 41], machines: [71, 24, 4, 5, 57] }
+    { label: "13H", winners: [37, 42, 38, 36, 18], machines: [81, 19, 26, 10, 44] },
+    { label: "10H", winners: [82, 54, 2, 49, 19], machines: [43, 5, 11, 37, 6] },
+    { label: "08H", winners: [47, 86, 10, 63, 46], machines: [67, 38, 71, 32, 74] },
+    { label: "07H", winners: [70, 66, 61, 29, 75], machines: [39, 81, 40, 8, 17] }
 ];
 
 let drawHistory = JSON.parse(localStorage.getItem('loto590_history')) || DEFAULT_HISTORY;
@@ -36,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Gestionnaire pour l'importation de plusieurs images (OCR)
+    // Gestionnaire pour l'importation de plusieurs images (OCR) - Optionnel
     const imageInput = document.getElementById('imageUploadInput');
     if (imageInput) {
         imageInput.addEventListener('change', handleMultipleImageUpload);
@@ -67,51 +68,59 @@ function normalizeLoto(num) {
     return val === 0 ? 90 : val;
 }
 
-// Moteur de calcul hybride avancé avec pondération par récence et voisinage
+// Moteur de calcul hybride corrigé (Répartition équilibrée 1-90 & Affinité Horaire)
 function generateHybridPrediction() {
     const dCurr = parseFloat(document.getElementById('dateCurrent').value) || 18;
     const dPrev = parseFloat(document.getElementById('datePrev').value) || 17;
-    const hour = parseFloat(document.getElementById('hourCoeff').value) || 10;
+    const targetHour = parseFloat(document.getElementById('hourCoeff').value) || 10;
 
-    // 1. Racine Mathématique : (Date / Veille) * (Heure / 2026)
-    const rawCoeff = (dCurr / dPrev) * (hour / 2026);
-    const coeffStr = rawCoeff.toFixed(6);
+    // 1. Formule mathématique corrigée pour balayer toute la plage 1-90 (évite de bloquer sur les petits chiffres)
+    const rawCoeff = (dCurr / dPrev) * (targetHour * 37.5);
+    const coeffStr = rawCoeff.toFixed(4);
     document.getElementById('formulaOutput').textContent = 
-        `(${dCurr}/${dPrev}) × (${hour}/2026) = ${coeffStr}`;
+        `(${dCurr}/${dPrev}) × (${targetHour}×37.5) = ${coeffStr}`;
 
-    // Extraction des paires décimales de la racine comme graines de base
-    const decimals = coeffStr.split('.')[1] || "123456";
+    // Extraction de graines réparties sur toute la grille 1-90
+    const parts = coeffStr.split('.');
+    const intPart = parseInt(parts[0]) || 1;
+    const decPart = parseInt(parts[1]) || 1234;
+
     let seedNumbers = [
-        normalizeLoto(parseInt(decimals.substring(0, 2))),
-        normalizeLoto(parseInt(decimals.substring(2, 4))),
-        normalizeLoto(parseInt(decimals.substring(4, 6)))
+        normalizeLoto(intPart * 7),
+        normalizeLoto(decPart % 90),
+        normalizeLoto((intPart + decPart) / 3)
     ];
 
     // Initialisation des scores pour les 90 numéros (index 1 à 90)
     let scores = new Array(91).fill(0);
 
-    // 2. Analyse de l'historique avec Poids par Récence & Filtre de Voisine (±1)
-    drawHistory.slice(0, 10).forEach((draw, index) => {
+    // 2. Analyse de l'historique avec pondération par Récence ET Affinité Horaire
+    drawHistory.forEach((draw, index) => {
         let poidsRecence = index === 0 ? 3.0 : (index < 3 ? 2.0 : 1.0);
+        
+        // Bonus d'affinité si le tirage historique correspond à la même heure ciblée
+        let drawHourNum = parseInt(draw.label) || 0;
+        let bonusHoraire = (drawHourNum === targetHour) ? 2.5 : 1.0;
+
+        let totalWeight = poidsRecence * bonusHoraire;
 
         draw.winners.forEach(num => {
-            scores[num] += 2 * poidsRecence;
+            scores[num] += 2.0 * totalWeight;
         });
 
         draw.machines.forEach(num => {
-            scores[num] += 3.5 * poidsRecence;
+            scores[num] += 3.0 * totalWeight;
 
-            if (index < 3) {
-                let voisinMoins = num === 1 ? 90 : num - 1;
-                let voisinPlus = num === 90 ? 1 : num + 1;
-                scores[voisinMoins] += 1.5 * poidsRecence;
-                scores[voisinPlus] += 1.5 * poidsRecence;
-            }
+            // Prise en compte des voisins immédiats (±1)
+            let voisinMoins = num === 1 ? 90 : num - 1;
+            let voisinPlus = num === 90 ? 1 : num + 1;
+            scores[voisinMoins] += 1.0 * totalWeight;
+            scores[voisinPlus] += 1.0 * totalWeight;
         });
     });
 
     seedNumbers.forEach(seed => {
-        scores[seed] += 5.0;
+        scores[seed] += 6.0;
     });
 
     // 3. Analyse des dizaines froides (Loi d'équilibre)
@@ -135,7 +144,7 @@ function generateHybridPrediction() {
     coldDizaines.forEach(dIdx => {
         for (let i = 1; i <= 10; i++) {
             let numInCold = (dIdx * 10) + i;
-            scores[numInCold] += 3.0;
+            scores[numInCold] += 4.0; // Poids renforcé pour les zones froides
         }
     });
 
@@ -153,7 +162,7 @@ function generateHybridPrediction() {
     const top5Moyenne = classement.slice(0, 5).reduce((acc, item) => acc + item.score, 0) / 5;
     const moyenneGlobale = classement.reduce((acc, item) => acc + item.score, 0) / 90;
     let ratio = moyenneGlobale > 0 ? (top5Moyenne / moyenneGlobale) : 1;
-    let indiceConfiance = Math.min(95, Math.max(30, Math.round(ratio * 25)));
+    let indiceConfiance = Math.min(95, Math.max(35, Math.round(ratio * 22)));
 
     // Affichage des boules
     renderBalls('predictedWinners', finalWinners.sort((a, b) => a - b), 'ball-winner');
@@ -168,9 +177,9 @@ function generateHybridPrediction() {
         <div style="margin-bottom: 8px; font-weight: bold; color: ${badgeColor}; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 6px;">
             Indice de convergence : ${indiceConfiance}% — ${badgeText}
         </div>
-        <strong>Logique appliquée (${pad(hour)}H) :</strong><br>
+        <strong>Logique appliquée (${pad(targetHour)}H) :</strong><br>
         • Dizaines froides ciblées : <b>${coldLabels}</b><br>
-        • Poids par récence & Voisins (±1) intégrés dans la matrice.
+        • Affinité horaire & Récence pondérées dans la matrice.
     `;
 }
 
@@ -185,7 +194,7 @@ function renderBalls(containerId, numbers, cssClass) {
     });
 }
 
-// Gestion de l'upload de plusieurs images avec analyseur par blocs horaires
+// Gestion de l'upload de plusieurs images (conservée au cas où)
 async function handleMultipleImageUpload(event) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -197,8 +206,6 @@ async function handleMultipleImageUpload(event) {
         statusDiv.textContent = `🔍 Analyse de l'image ${i + 1} sur ${files.length}...`;
         try {
             const { data: { text } } = await Tesseract.recognize(files[i], 'eng');
-            
-            // Analyse intelligente et découpage par heures (07H, 08H, 10H, 13H...)
             const draws = parseMultipleDrawsFromText(text);
             
             draws.forEach(draw => {
@@ -224,7 +231,6 @@ async function handleMultipleImageUpload(event) {
     }
 }
 
-// Parseur ultra-précis par blocs d'heures
 function parseMultipleDrawsFromText(text) {
     let draws = [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -233,7 +239,6 @@ function parseMultipleDrawsFromText(text) {
     let collectedNumbers = [];
 
     lines.forEach(line => {
-        // Détecte une ligne contenant une heure (ex: "07H", "08H", "10H", "13H")
         const hourMatch = line.match(/\b([0-2]?[0-9])\s*H\b/i);
         if (hourMatch) {
             if (currentLabel && collectedNumbers.length >= 10) {
@@ -247,7 +252,6 @@ function parseMultipleDrawsFromText(text) {
             currentLabel = hourMatch[1].padStart(2, '0') + 'H';
         }
 
-        // Extrait tous les numéros valides entre 1 et 90 présents sur la ligne
         const nums = line.match(/\b([0-9]{1,2})\b/g);
         if (nums) {
             nums.forEach(n => {
@@ -261,7 +265,6 @@ function parseMultipleDrawsFromText(text) {
         }
     });
 
-    // Enregistre le dernier bloc en cours
     if (currentLabel && collectedNumbers.length >= 10) {
         draws.push({
             label: currentLabel,
@@ -301,7 +304,9 @@ function addNewDraw() {
     document.getElementById('drawLabel').value = '';
     document.getElementById('inputWinners').value = '';
     document.getElementById('inputMachines').value = '';
-    document.getElementById('ocrStatus').textContent = '';
+    if(document.getElementById('ocrStatus')) {
+        document.getElementById('ocrStatus').textContent = '';
+    }
 }
 
 function saveHistory() {
