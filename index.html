@@ -22,38 +22,39 @@
         <!-- Section 1 : Paramètres de calcul -->
         <section class="card">
             <h2>1. Paramètres du Prochain Tirage</h2>
+            <div class="input-group">
+                <label for="targetDate">Date ciblée (Jour de la semaine &amp; Date)</label>
+                <input type="date" id="targetDate" value="2026-11-19">
+            </div>
+
             <div class="grid-dates">
                 <div class="input-group">
                     <label for="dateCurrent">Date du jour (JJ)</label>
-                    <input type="number" id="dateCurrent" min="1" max="31" value="17">
+                    <input type="number" id="dateCurrent" min="1" max="31" value="19">
                 </div>
                 <div class="input-group">
                     <label for="datePrev">Date veille (JJ)</label>
-                    <input type="number" id="datePrev" min="1" max="31" value="16">
+                    <input type="number" id="datePrev" min="1" max="31" value="18">
                 </div>
             </div>
 
             <div class="input-group">
                 <label>Sélectionne l'Heure du Tirage :</label>
                 <div class="hours-grid" id="hoursGrid">
-                    <button type="button" class="hour-btn" data-hour="7">07H</button>
-                    <button type="button" class="hour-btn" data-hour="8">08H</button>
-                    <button type="button" class="hour-btn active" data-hour="10">10H</button>
-                    <button type="button" class="hour-btn" data-hour="11">11H</button>
-                    <button type="button" class="hour-btn" data-hour="12">12H</button>
-                    <button type="button" class="hour-btn" data-hour="13">13H</button>
-                    <button type="button" class="hour-btn" data-hour="14">14H</button>
-                    <button type="button" class="hour-btn" data-hour="15">15H</button>
-                    <button type="button" class="hour-btn" data-hour="16">16H</button>
-                    <button type="button" class="hour-btn" data-hour="17">17H</button>
-                    <button type="button" class="hour-btn" data-hour="18">18H</button>
-                    <button type="button" class="hour-btn" data-hour="19">19H</button>
-                    <button type="button" class="hour-btn" data-hour="20">20H</button>
-                    <button type="button" class="hour-btn" data-hour="21">21H</button>
-                    <button type="button" class="hour-btn" data-hour="22">22H</button>
-                    <button type="button" class="hour-btn" data-hour="23">23H</button>
+                    <button type="button" class="hour-btn" data-hour="07H">07H</button>
+                    <button type="button" class="hour-btn" data-hour="08H">08H</button>
+                    <button type="button" class="hour-btn active" data-hour="10H">10H</button>
+                    <button type="button" class="hour-btn" data-hour="13H">13H</button>
+                    <button type="button" class="hour-btn" data-hour="16H">16H</button>
+                    <button type="button" class="hour-btn" data-hour="18H">18H</button>
+                    <button type="button" class="hour-btn" data-hour="21H">21H</button>
+                    <button type="button" class="hour-btn" data-hour="22H">22H</button>
+                    <button type="button" class="hour-btn" data-hour="23H">23H</button>
+                    <button type="button" class="hour-btn" data-hour="01H">01H</button>
+                    <button type="button" class="hour-btn" data-hour="03H">03H</button>
+                    <button type="button" class="hour-btn" data-hour="20H">20H</button>
                 </div>
-                <input type="hidden" id="hourCoeff" value="10">
+                <input type="hidden" id="hourCoeff" value="10H">
             </div>
 
             <button type="button" id="btnCalculate" class="btn-primary">Générer la Matrice Hybride</button>
@@ -91,19 +92,25 @@
                 <div id="ocrStatus" style="font-size: 0.85rem; color: #64748b; margin-top: 5px; text-align: center;"></div>
             </div>
 
-            <div class="input-group">
-                <label for="drawLabel">Créneau (ex: 07H, 08H, 10H...)</label>
-                <input type="text" id="drawLabel" placeholder="Ex: 10H">
-            </div>
-            <div class="input-group">
-                <label for="inputWinners">5 Gagnants</label>
-                <input type="text" id="inputWinners" placeholder="Ex: 03 20 13 50 25">
-            </div>
-            <div class="input-group">
-                <label for="inputMachines">5 Machines</label>
-                <input type="text" id="inputMachines" placeholder="Ex: 30 86 51 46 26">
-            </div>
-            <button type="button" id="btnAddDraw" class="btn-secondary">Ajouter à l'historique</button>
+            <form id="addDrawForm">
+                <div class="input-group">
+                    <label for="drawDateInput">Date du tirage</label>
+                    <input type="date" id="drawDateInput" value="2026-11-19">
+                </div>
+                <div class="input-group">
+                    <label for="drawHourInput">Créneau (ex: 07H, 08H, 10H, 16H...)</label>
+                    <input type="text" id="drawHourInput" placeholder="Ex: 16H">
+                </div>
+                <div class="input-group">
+                    <label for="winnersInput">5 Gagnants</label>
+                    <input type="text" id="winnersInput" placeholder="Ex: 03 20 13 50 25">
+                </div>
+                <div class="input-group">
+                    <label for="machinesInput">5 Machines</label>
+                    <input type="text" id="machinesInput" placeholder="Ex: 30 86 51 46 26">
+                </div>
+                <button type="submit" id="btnAddDraw" class="btn-secondary">Ajouter à l'historique</button>
+            </form>
         </section>
 
         <!-- Section 4 : Historique récent -->
