@@ -1,9 +1,8 @@
 /* ==========================================================================
-   LOTO 5/90 ANALYZER PRO — app.js (v11.3 — Dev.Assamoi / H@B)
+   LOTO 5/90 ANALYZER PRO — app.js (v11.4 — Dev.Assamoi / H@B)
    ========================================================================== */
 
 const STORAGE_KEY = 'loto590_history_v11';
-const HOURS_LIST = ['07H', '08H', '10H', '13H', '16H', '18H', '21H', '22H', '23H'];
 const DAY_NAMES_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 /* --------------------------------------------------------------------------
@@ -135,8 +134,15 @@ const SEED_HISTORY = [
 /* --------------------------------------------------------------------------
    2. ÉTAT GLOBAL & UTILITAIRES DATE / JOUR
    -------------------------------------------------------------------------- */
-let selectedHour = '07H';
+let selectedHour = '10H';
 let drawHistory = [];
+
+function formatHourLabel(raw) {
+  const match = String(raw || '').trim().match(/(\d{1,2})/);
+  if (!match) return '10H';
+  const num = Math.min(23, Math.max(0, parseInt(match[1], 10)));
+  return `${String(num).padStart(2, '0')}H`;
+}
 
 function parseISODate(dateStr) {
   const parts = (dateStr || '').split('-').map(Number);
@@ -147,7 +153,7 @@ function parseISODate(dateStr) {
 }
 
 function getDayOfWeek(dateStr) {
-  return parseISODate(dateStr).getUTCDay(); // 0 = Dimanche ... 6 = Samedi
+  return parseISODate(dateStr).getUTCDay();
 }
 
 function formatFRDate(dateStr) {
@@ -158,7 +164,7 @@ function formatFRDate(dateStr) {
 
 function normalizeEntry(raw) {
   const dateStr = raw.date || '2026-11-19';
-  const hourStr = String(raw.hour || '07H').toUpperCase().padStart(3, '0');
+  const hourStr = formatHourLabel(raw.hour || '07H');
   const winners = (raw.winners || []).map(Number).filter(n => n >= 1 && n <= 90).slice(0, 5);
   const machines = (raw.machines || []).map(Number).filter(n => n >= 1 && n <= 90).slice(0, 5);
   return {
@@ -210,18 +216,20 @@ function saveHistory() {
    -------------------------------------------------------------------------- */
 document.addEventListener('DOMContentLoaded', () => {
   loadHistory();
-  initDateInputs();
-  renderHourButtons();
+  bindDateSync();
+  bindHourButtons();
+  bindOCRUpload();
+
   renderHistory();
   generateHybridMatrix();
 
-  const genBtn = document.getElementById('generateBtn');
-  if (genBtn) genBtn.addEventListener('click', generateHybridMatrix);
+  const calcBtn = document.getElementById('btnCalculate');
+  if (calcBtn) calcBtn.addEventListener('click', generateHybridMatrix);
 
   const addForm = document.getElementById('addDrawForm');
   if (addForm) addForm.addEventListener('submit', handleAddDraw);
 
-  const resetBtn = document.getElementById('resetSeedBtn');
+  const resetBtn = document.getElementById('btnReset');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
       localStorage.removeItem(STORAGE_KEY);
@@ -233,39 +241,49 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-function initDateInputs() {
-  const dayCurrInput = document.getElementById('dayCurrent');
-  const dayPrevInput = document.getElementById('dayPrev');
-  const targetDateInput = document.getElementById('targetDate');
+function bindDateSync() {
+  const targetDateEl = document.getElementById('targetDate');
+  const dateCurrEl = document.getElementById('dateCurrent');
+  const datePrevEl = document.getElementById('datePrev');
 
-  const currVal = dayCurrInput && dayCurrInput.value ? Number(dayCurrInput.value) : 19;
-  const prevVal = dayPrevInput && dayPrevInput.value ? Number(dayPrevInput.value) : 18;
+  if (targetDateEl && dateCurrEl && datePrevEl) {
+    const syncFromTarget = () => {
+      const parts = (targetDateEl.value || '2026-11-19').split('-').map(Number);
+      if (parts.length === 3 && !parts.some(Number.isNaN)) {
+        const dayNum = parts[2];
+        dateCurrEl.value = dayNum;
+        datePrevEl.value = dayNum > 1 ? dayNum - 1 : 30;
+      }
+      generateHybridMatrix();
+    };
 
-  if (dayCurrInput && !dayCurrInput.value) dayCurrInput.value = currVal;
-  if (dayPrevInput && !dayPrevInput.value) dayPrevInput.value = prevVal;
-
-  if (targetDateInput && !targetDateInput.value) {
-    const paddedDay = String(Math.min(Math.max(currVal, 1), 30)).padStart(2, '0');
-    targetDateInput.value = `2026-11-${paddedDay}`;
+    targetDateEl.addEventListener('change', syncFromTarget);
+    dateCurrEl.addEventListener('change', () => {
+      const d = Math.min(30, Math.max(1, Number(dateCurrEl.value) || 19));
+      const baseParts = (targetDateEl.value || '2026-11-19').split('-');
+      targetDateEl.value = `${baseParts[0] || '2026'}-${baseParts[1] || '11'}-${String(d).padStart(2, '0')}`;
+      generateHybridMatrix();
+    });
+    datePrevEl.addEventListener('change', generateHybridMatrix);
   }
 }
 
-function renderHourButtons() {
-  const container = document.getElementById('hourButtons');
-  if (!container) return;
+function bindHourButtons() {
+  const grid = document.getElementById('hoursGrid');
+  const hiddenInput = document.getElementById('hourCoeff');
+  if (!grid) return;
 
-  const extraHours = ['01H', '03H', '20H'];
-  const allHours = [...new Set([...HOURS_LIST, ...extraHours])];
+  const activeBtn = grid.querySelector('.hour-btn.active');
+  if (activeBtn && activeBtn.dataset.hour) {
+    selectedHour = formatHourLabel(activeBtn.dataset.hour);
+    if (hiddenInput) hiddenInput.value = selectedHour;
+  }
 
-  container.innerHTML = allHours.map(h => {
-    const activeClass = h === selectedHour ? 'active' : '';
-    return `<button type="button" class="hour-btn ${activeClass}" data-hour="${h}">${h}</button>`;
-  }).join('');
-
-  container.querySelectorAll('.hour-btn').forEach(btn => {
+  grid.querySelectorAll('.hour-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      selectedHour = btn.dataset.hour;
-      container.querySelectorAll('.hour-btn').forEach(b => b.classList.remove('active'));
+      selectedHour = formatHourLabel(btn.dataset.hour);
+      if (hiddenInput) hiddenInput.value = selectedHour;
+      grid.querySelectorAll('.hour-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       generateHybridMatrix();
     });
@@ -276,28 +294,26 @@ function renderHourButtons() {
    4. MOTEUR HYBRIDE JOUR + DATE + HEURE
    -------------------------------------------------------------------------- */
 function generateHybridMatrix() {
-  const dayCurr = Math.max(1, Number(document.getElementById('dayCurrent')?.value || 19));
-  const dayPrev = Math.max(1, Number(document.getElementById('dayPrev')?.value || 18));
-  const targetDate = document.getElementById('targetDate')?.value || `2026-11-${String(dayCurr).padStart(2, '0')}`;
+  const dayCurr = Math.max(1, Number(document.getElementById('dateCurrent')?.value || 19));
+  const dayPrev = Math.max(1, Number(document.getElementById('datePrev')?.value || 18));
+  const targetDate = document.getElementById('targetDate')?.value || `2026-11-${String(Math.min(dayCurr, 30)).padStart(2, '0')}`;
   const targetDayOfWeek = getDayOfWeek(targetDate);
   const targetDayName = DAY_NAMES_FR[targetDayOfWeek];
-  const hourNum = parseInt(selectedHour.replace('H', ''), 10) || 7;
+  const hourNum = parseInt(selectedHour.replace('H', ''), 10) || 10;
 
   const dateRatio = dayCurr / dayPrev;
   const formulaValue = dateRatio * (hourNum * 37.5);
 
-  const formulaEl = document.getElementById('formulaDisplay');
+  const formulaEl = document.getElementById('formulaOutput');
   if (formulaEl) {
-    formulaEl.textContent = `(${dayCurr}/${dayPrev}) × (${hourNum}×37.5) = ${formulaValue.toFixed(4)}`;
+    formulaEl.textContent = `Coefficient (${targetDayName} ${selectedHour}) : (${dayCurr}/${dayPrev}) × (${hourNum}×37.5) = ${formulaValue.toFixed(4)}`;
   }
 
-  // Filtrage contextuel dans l'historique
   const sameDayHourDraws = drawHistory.filter(d => d.dayOfWeek === targetDayOfWeek && d.hour === selectedHour);
   const sameDayDraws = drawHistory.filter(d => d.dayOfWeek === targetDayOfWeek);
   const sameHourDraws = drawHistory.filter(d => d.hour === selectedHour);
   const recentDraws = drawHistory.slice(0, 12);
 
-  // Fréquences globales des gagnants pour repérer les dizaines froides
   const winnerFreq = Array(91).fill(0);
   drawHistory.forEach(d => d.winners.forEach(n => { winnerFreq[n] += 1; }));
 
@@ -323,25 +339,24 @@ function generateHybridMatrix() {
     for (let n = dec.min; n <= dec.max; n++) coldSet.add(n);
   });
 
-  // Calcul des scores par numéro (1 à 90)
   const candidates = [];
   for (let n = 1; n <= 90; n++) {
     let winnerScore = 0;
     let machineScore = 0;
 
-    // 1. Même jour de la semaine + même heure (poids fort)
+    // 1. Même jour de la semaine + même heure
     sameDayHourDraws.forEach(d => {
       if (d.winners.includes(n)) winnerScore += 2.6;
       if (d.machines.includes(n)) machineScore += 2.4;
     });
 
-    // 2. Même jour de la semaine (toutes heures)
+    // 2. Même jour de la semaine
     sameDayDraws.forEach(d => {
       if (d.winners.includes(n)) winnerScore += 1.1;
       if (d.machines.includes(n)) machineScore += 1.0;
     });
 
-    // 3. Même créneau horaire (tous jours)
+    // 3. Même créneau horaire
     sameHourDraws.forEach(d => {
       if (d.winners.includes(n)) winnerScore += 1.5;
       if (d.machines.includes(n)) machineScore += 1.4;
@@ -365,7 +380,7 @@ function generateHybridMatrix() {
       machineScore += 0.65;
     }
 
-    // 6. Modulateur léger lié au ratio de date et à l'heure
+    // 6. Modulateur date / heure
     const dateMod = ((n * dayCurr) % (dayPrev + 5)) / 10;
     winnerScore += dateMod * Math.min(dateRatio, 1.5);
     machineScore += ((n + hourNum) % 7) * 0.1;
@@ -384,8 +399,8 @@ function generateHybridMatrix() {
     .slice(0, 5)
     .map(item => item.num);
 
-  renderBalls('mainSelection', topWinners, 'ball-winner');
-  renderBalls('pivotSelection', topMachines, 'ball-machine');
+  renderBalls('predictedWinners', topWinners, 'ball-winner');
+  renderBalls('predictedMachines', topMachines, 'ball-machine');
 
   const convergenceIndex = Math.min(
     95,
@@ -395,10 +410,10 @@ function generateHybridMatrix() {
   const analysisEl = document.getElementById('statsAnalysis');
   if (analysisEl) {
     analysisEl.innerHTML = `
-      <div><strong>Indice de convergence : ${convergenceIndex} %</strong> — 🟢 Signal concentré (${targetDayName} ${formatFRDate(targetDate)})</div>
-      <div><strong>Contexte historique :</strong> ${sameDayHourDraws.length} tirage(s) ${targetDayName} ${selectedHour} • ${sameDayDraws.length} tirage(s) ${targetDayName} • ${sameHourDraws.length} tirage(s) ${selectedHour} (sur ${drawHistory.length} tirages).</div>
-      <div><strong>Dizaines froides ciblées :</strong> ${targetedDecades[0]?.label || '21-30'} et ${targetedDecades[1]?.label || '61-70'}</div>
-      <div><strong>Ordre d'affichage :</strong> Classé du 1<sup>er</sup> au 5<sup>e</sup> rang de score (créneau ${selectedHour}).</div>
+      <div><strong>Indice de convergence : ${convergenceIndex} %</strong> — ${targetDayName} ${formatFRDate(targetDate)} à ${selectedHour}</div>
+      <div><strong>Contexte :</strong> ${sameDayHourDraws.length} tirage(s) ${targetDayName} ${selectedHour} • ${sameDayDraws.length} tirage(s) ${targetDayName} • ${sameHourDraws.length} tirage(s) ${selectedHour} (sur ${drawHistory.length} tirages).</div>
+      <div><strong>Dizaines froides :</strong> ${targetedDecades[0]?.label || '21-30'} et ${targetedDecades[1]?.label || '61-70'}</div>
+      <div><strong>Classement :</strong> 1<sup>er</sup> au 5<sup>e</sup> rang de score (observation statistique).</div>
     `;
   }
 }
@@ -412,12 +427,94 @@ function renderBalls(containerId, nums, ballClass) {
 }
 
 /* --------------------------------------------------------------------------
-   5. AJOUT D'UN RÉSULTAT OFFICIEL & AFFICHAGE HISTORIQUE (BOULES COLORÉES)
+   5. OCR TESSERACT, SAISIE MANUELLE & HISTORIQUE
    -------------------------------------------------------------------------- */
+function bindOCRUpload() {
+  const uploadInput = document.getElementById('imageUploadInput');
+  const statusEl = document.getElementById('ocrStatus');
+  if (!uploadInput || typeof Tesseract === 'undefined') return;
+
+  uploadInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    let addedCount = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (statusEl) statusEl.textContent = `Analyse OCR (${i + 1}/${files.length}) : ${file.name}...`;
+
+      try {
+        const res = await Tesseract.recognize(file, 'fra');
+        const text = (res?.data?.text || '').toUpperCase();
+        const parsed = extractDrawFromOCRText(text, document.getElementById('drawDateInput')?.value || document.getElementById('targetDate')?.value || '2026-11-19');
+
+        if (parsed && parsed.winners.length === 5 && parsed.machines.length === 5) {
+          drawHistory = deduplicateAndSort([parsed, ...drawHistory]);
+          addedCount += 1;
+        } else if (parsed && parsed.winners.length === 5) {
+          const hourField = document.getElementById('drawHourInput');
+          const winField = document.getElementById('winnersInput');
+          const macField = document.getElementById('machinesInput');
+          if (hourField) hourField.value = parsed.hour;
+          if (winField) winField.value = parsed.winners.map(n => String(n).padStart(2, '0')).join(' ');
+          if (macField && parsed.machines.length) macField.value = parsed.machines.map(n => String(n).padStart(2, '0')).join(' ');
+        }
+      } catch (err) {
+        console.error('Erreur OCR :', err);
+      }
+    }
+
+    if (addedCount > 0) {
+      saveHistory();
+      renderHistory();
+      generateHybridMatrix();
+      if (statusEl) statusEl.textContent = `${addedCount} tirage(s) ajouté(s) depuis l'OCR.`;
+    } else if (statusEl) {
+      statusEl.textContent = 'Lecture terminée — vérifie ou complète les champs ci-dessous.';
+    }
+
+    uploadInput.value = '';
+  });
+}
+
+function extractDrawFromOCRText(text, fallbackDate) {
+  let detectedDate = fallbackDate;
+  const dateMatch = text.match(/(\d{2})[\/\-](\d{2})[\/\-](202\d)/);
+  if (dateMatch) {
+    detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+  }
+
+  let detectedHour = selectedHour;
+  const hourMatch = text.match(/\b(0?[1-9]|1\d|2[0-3])\s*H\b/);
+  if (hourMatch) {
+    detectedHour = formatHourLabel(hourMatch[1]);
+  }
+
+  const allNums = (text.match(/\b([0-8]?\d|90)\b/g) || [])
+    .map(Number)
+    .filter(n => n >= 1 && n <= 90);
+
+  // Évite de confondre la date/année avec les numéros si possible
+  if (allNums.length >= 10) {
+    const winners = allNums.slice(0, 5);
+    const machines = allNums.slice(5, 10);
+    return normalizeEntry({ date: detectedDate, hour: detectedHour, winners, machines });
+  }
+  if (allNums.length >= 5) {
+    return {
+      date: detectedDate,
+      hour: detectedHour,
+      winners: allNums.slice(0, 5),
+      machines: []
+    };
+  }
+  return null;
+}
+
 function handleAddDraw(e) {
   e.preventDefault();
   const dateVal = document.getElementById('drawDateInput')?.value || document.getElementById('targetDate')?.value || '2026-11-19';
-  const hourVal = (document.getElementById('drawHourInput')?.value || selectedHour || '07H').toUpperCase();
+  const hourVal = document.getElementById('drawHourInput')?.value || selectedHour || '10H';
   const winnersRaw = document.getElementById('winnersInput')?.value || '';
   const machinesRaw = document.getElementById('machinesInput')?.value || '';
 
@@ -442,7 +539,10 @@ function handleAddDraw(e) {
   renderHistory();
   generateHybridMatrix();
 
-  e.target.reset();
+  const wInput = document.getElementById('winnersInput');
+  const mInput = document.getElementById('machinesInput');
+  if (wInput) wInput.value = '';
+  if (mInput) mInput.value = '';
 }
 
 function renderHistory() {
