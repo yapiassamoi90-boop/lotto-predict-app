@@ -15,7 +15,7 @@
 <body>
     <header>
         <h1>Loto 5/90 Hybrid Analyzer</h1>
-        <p class="subtitle">Formule Mathématique & Équilibre Statistique</p>
+        <p class="subtitle">Formule Mathématique &amp; Équilibre Statistique</p>
     </header>
 
     <main>
@@ -56,21 +56,21 @@
                 <input type="hidden" id="hourCoeff" value="10">
             </div>
 
-            <button id="btnCalculate" class="btn-primary">Générer la Matrice Hybride</button>
+            <button type="button" id="btnCalculate" class="btn-primary">Générer la Matrice Hybride</button>
         </section>
 
         <!-- Section 2 : Résultats & Prédictions -->
         <section class="card results-card" id="resultsSection">
-            <h2>2. Zones Probables & Paires Estimées</h2>
+            <h2>2. Zones Probables &amp; Paires Estimées</h2>
             <div class="formula-display" id="formulaOutput">Coefficient : --</div>
-            
+
             <div class="result-block">
                 <h3>Sélection Principale (Gagnants ciblés)</h3>
                 <div class="balls-container" id="predictedWinners"></div>
             </div>
 
             <div class="result-block">
-                <h3>Pivots & Machines Associées</h3>
+                <h3>Pivots &amp; Machines Associées</h3>
                 <div class="balls-container" id="predictedMachines"></div>
             </div>
 
@@ -81,13 +81,12 @@
         <section class="card">
             <h2>3. Enregistrer un Résultat Officiel</h2>
             <p class="hint">Saisis les numéros ou scanne une/plusieurs captures d'écran :</p>
-            
+
             <!-- Bouton d'importation multiple d'images pour l'OCR -->
             <div class="input-group" style="margin-bottom: 15px;">
                 <label for="imageUploadInput" class="btn-secondary" style="display: block; text-align: center; cursor: pointer; background: #0d9488; color: white; padding: 10px; border-radius: 8px;">
                     📸 Importer des captures de résultats (OCR)
                 </label>
-                <!-- Ajout de l'attribut multiple ici -->
                 <input type="file" id="imageUploadInput" accept="image/*" multiple style="display: none;">
                 <div id="ocrStatus" style="font-size: 0.85rem; color: #64748b; margin-top: 5px; text-align: center;"></div>
             </div>
@@ -104,14 +103,14 @@
                 <label for="inputMachines">5 Machines</label>
                 <input type="text" id="inputMachines" placeholder="Ex: 30 86 51 46 26">
             </div>
-            <button id="btnAddDraw" class="btn-secondary">Ajouter à l'historique</button>
+            <button type="button" id="btnAddDraw" class="btn-secondary">Ajouter à l'historique</button>
         </section>
 
         <!-- Section 4 : Historique récent -->
         <section class="card">
             <div class="history-header">
                 <h2>4. Historique Récent</h2>
-                <button id="btnReset" class="btn-danger-small">Réinitialiser</button>
+                <button type="button" id="btnReset" class="btn-danger-small">Réinitialiser</button>
             </div>
             <div id="historyList" class="history-list"></div>
         </section>
