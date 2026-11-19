@@ -21,8 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
 
-    document.getElementById('dateCurrent').value = today.getDate();
-    document.getElementById('datePrev').value = yesterday.getDate();
+    const dateCurrentEl = document.getElementById('dateCurrent');
+    const datePrevEl = document.getElementById('datePrev');
+    if (dateCurrentEl) dateCurrentEl.value = today.getDate();
+    if (datePrevEl) datePrevEl.value = yesterday.getDate();
 
     // Gestion du clic sur les boutons d'heures
     const hourButtons = document.querySelectorAll('.hour-btn');
@@ -32,7 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => {
             hourButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            hourInput.value = btn.getAttribute('data-hour');
+            if (hourInput) {
+                hourInput.value = btn.getAttribute('data-hour');
+            }
             generateHybridPrediction();
         });
     });
@@ -48,14 +52,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Écouteurs d'événements
-document.getElementById('btnCalculate').addEventListener('click', generateHybridPrediction);
-document.getElementById('btnAddDraw').addEventListener('click', addNewDraw);
-document.getElementById('btnReset').addEventListener('click', () => {
-    drawHistory = [...DEFAULT_HISTORY];
-    saveHistory();
-    renderHistory();
-    generateHybridPrediction();
-});
+const btnCalculate = document.getElementById('btnCalculate');
+const btnAddDraw = document.getElementById('btnAddDraw');
+const btnReset = document.getElementById('btnReset');
+
+if (btnCalculate) btnCalculate.addEventListener('click', generateHybridPrediction);
+if (btnAddDraw) btnAddDraw.addEventListener('click', addNewDraw);
+if (btnReset) {
+    btnReset.addEventListener('click', () => {
+        drawHistory = [...DEFAULT_HISTORY];
+        saveHistory();
+        renderHistory();
+        generateHybridPrediction();
+    });
+}
 
 // Formate un nombre sur 2 chiffres (ex: 3 -> "03")
 function pad(n) {
@@ -68,123 +78,170 @@ function normalizeLoto(num) {
     return val === 0 ? 90 : val;
 }
 
+// Extrait l'heure (0-23) d'un libellé comme "07H", "13H", "20H"
+function extractHourFromLabel(label) {
+    if (!label || typeof label !== 'string') return null;
+    const match = label.match(/\b([0-2]?[0-9])\s*H\b/i);
+    if (!match) return null;
+    const h = parseInt(match[1], 10);
+    return (h >= 0 && h <= 23) ? h : null;
+}
+
 // Moteur de calcul hybride corrigé (Répartition équilibrée 1-90 & Affinité Horaire)
 function generateHybridPrediction() {
-    const dCurr = parseFloat(document.getElementById('dateCurrent').value) || 18;
-    const dPrev = parseFloat(document.getElementById('datePrev').value) || 17;
-    const targetHour = parseFloat(document.getElementById('hourCoeff').value) || 10;
+    const dateCurrVal = document.getElementById('dateCurrent') ? parseFloat(document.getElementById('dateCurrent').value) : NaN;
+    const datePrevVal = document.getElementById('datePrev') ? parseFloat(document.getElementById('datePrev').value) : NaN;
+    const hourVal = document.getElementById('hourCoeff') ? parseInt(document.getElementById('hourCoeff').value, 10) : NaN;
 
-    // 1. Formule mathématique corrigée pour balayer toute la plage 1-90 (évite de bloquer sur les petits chiffres)
-    const rawCoeff = (dCurr / dPrev) * (targetHour * 37.5);
+    const dCurr = !isNaN(dateCurrVal) ? dateCurrVal : new Date().getDate();
+    const dPrevRaw = !isNaN(datePrevVal) ? datePrevVal : 1;
+    const safeDPrev = dPrevRaw === 0 ? 1 : dPrevRaw;
+    const targetHour = !isNaN(hourVal) ? hourVal : 10;
+
+    // 1. Coefficient indicatif du créneau sur la grille 1-90
+    const rawCoeff = (dCurr / safeDPrev) * (targetHour * 37.5);
     const coeffStr = rawCoeff.toFixed(4);
-    document.getElementById('formulaOutput').textContent = 
-        `(${dCurr}/${dPrev}) × (${targetHour}×37.5) = ${coeffStr}`;
+    const formulaEl = document.getElementById('formulaOutput');
+    if (formulaEl) {
+        formulaEl.textContent = `(${dCurr}/${safeDPrev}) × (${targetHour}×37.5) = ${coeffStr}`;
+    }
 
-    // Extraction de graines réparties sur toute la grille 1-90
+    // Graines légères dérivées du coefficient
     const parts = coeffStr.split('.');
-    const intPart = parseInt(parts[0]) || 1;
-    const decPart = parseInt(parts[1]) || 1234;
+    const intPart = parseInt(parts[0], 10) || 1;
+    const decPart = parseInt(parts[1], 10) || 1234;
 
-    let seedNumbers = [
+    const seedNumbers = [
         normalizeLoto(intPart * 7),
         normalizeLoto(decPart % 90),
         normalizeLoto((intPart + decPart) / 3)
     ];
 
-    // Initialisation des scores pour les 90 numéros (index 1 à 90)
-    let scores = new Array(91).fill(0);
+    // Scores séparés pour les gagnants et les pivots/machines (index 1 à 90)
+    const winnerScores = new Array(91).fill(0);
+    const machineScores = new Array(91).fill(0);
 
-    // 2. Analyse de l'historique avec pondération par Récence ET Affinité Horaire
+    // 2. Pondération progressive par récence + affinité horaire
     drawHistory.forEach((draw, index) => {
-        let poidsRecence = index === 0 ? 3.0 : (index < 3 ? 2.0 : 1.0);
-        
-        // Bonus d'affinité si le tirage historique correspond à la même heure ciblée
-        let drawHourNum = parseInt(draw.label) || 0;
-        let bonusHoraire = (drawHourNum === targetHour) ? 2.5 : 1.0;
-
-        let totalWeight = poidsRecence * bonusHoraire;
+        const recencyWeight = Math.pow(0.86, index) * 3.0;
+        const drawHour = extractHourFromLabel(draw.label);
+        const hourAffinity = (drawHour !== null && drawHour === targetHour) ? 1.8 : 1.0;
+        const totalWeight = recencyWeight * hourAffinity;
 
         draw.winners.forEach(num => {
-            scores[num] += 2.0 * totalWeight;
+            if (num >= 1 && num <= 90) {
+                winnerScores[num] += 2.2 * totalWeight;
+            }
         });
 
         draw.machines.forEach(num => {
-            scores[num] += 3.0 * totalWeight;
+            if (num >= 1 && num <= 90) {
+                machineScores[num] += 2.2 * totalWeight;
+                winnerScores[num] += 1.0 * totalWeight;
 
-            // Prise en compte des voisins immédiats (±1)
-            let voisinMoins = num === 1 ? 90 : num - 1;
-            let voisinPlus = num === 90 ? 1 : num + 1;
-            scores[voisinMoins] += 1.0 * totalWeight;
-            scores[voisinPlus] += 1.0 * totalWeight;
+                const voisinMoins = num === 1 ? 90 : num - 1;
+                const voisinPlus = num === 90 ? 1 : num + 1;
+
+                winnerScores[voisinMoins] += 0.5 * totalWeight;
+                winnerScores[voisinPlus] += 0.5 * totalWeight;
+                machineScores[voisinMoins] += 0.6 * totalWeight;
+                machineScores[voisinPlus] += 0.6 * totalWeight;
+            }
         });
     });
 
+    // Léger apport des graines du créneau
     seedNumbers.forEach(seed => {
-        scores[seed] += 6.0;
+        winnerScores[seed] += 1.5;
+        machineScores[seed] += 1.0;
     });
 
-    // 3. Analyse des dizaines froides (Loi d'équilibre)
+    // 3. Dizaines les moins présentes sur les 5 derniers tirages gagnants (poids modéré)
     const dizaineCounts = Array(9).fill(0);
     drawHistory.slice(0, 5).forEach(draw => {
         draw.winners.forEach(num => {
-            const idx = Math.min(8, Math.floor((num - 1) / 10));
-            dizaineCounts[idx]++;
+            if (num >= 1 && num <= 90) {
+                const idx = Math.min(8, Math.floor((num - 1) / 10));
+                dizaineCounts[idx]++;
+            }
         });
     });
 
-    let coldDizaines = [];
+    const minCount = Math.min(...dizaineCounts);
+    const coldDizaines = [];
     dizaineCounts.forEach((count, idx) => {
-        if (count === 0) coldDizaines.push(idx);
+        if (count === minCount) coldDizaines.push(idx);
     });
-    if (coldDizaines.length === 0) {
-        const minCount = Math.min(...dizaineCounts);
-        dizaineCounts.forEach((c, idx) => { if (c === minCount) coldDizaines.push(idx); });
-    }
 
     coldDizaines.forEach(dIdx => {
         for (let i = 1; i <= 10; i++) {
-            let numInCold = (dIdx * 10) + i;
-            scores[numInCold] += 4.0; // Poids renforcé pour les zones froides
+            const numInCold = (dIdx * 10) + i;
+            winnerScores[numInCold] += 1.2;
         }
     });
 
-    // 4. Classement global des 90 numéros par score décroissant
-    let classement = [];
+    // 4. Classement des 90 numéros pour la sélection principale (5 numéros)
+    const rankedWinners = [];
     for (let i = 1; i <= 90; i++) {
-        classement.push({ numero: i, score: scores[i] });
+        rankedWinners.push({ numero: i, score: winnerScores[i] });
     }
-    classement.sort((a, b) => b.score - a.score);
+    rankedWinners.sort((a, b) => b.score - a.score || a.numero - b.numero);
+    const finalWinners = rankedWinners.slice(0, 5).map(item => item.numero);
 
-    let finalWinners = classement.slice(0, 5).map(item => item.numero);
-    let finalMachines = classement.slice(5, 10).map(item => item.numero);
+    // Classement pour les pivots/machines (5 numéros distincts de la sélection principale si possible)
+    const rankedMachines = [];
+    for (let i = 1; i <= 90; i++) {
+        rankedMachines.push({ numero: i, score: machineScores[i] });
+    }
+    rankedMachines.sort((a, b) => b.score - a.score || a.numero - b.numero);
 
-    // 5. Calcul de l'Indice de Convergence
-    const top5Moyenne = classement.slice(0, 5).reduce((acc, item) => acc + item.score, 0) / 5;
-    const moyenneGlobale = classement.reduce((acc, item) => acc + item.score, 0) / 90;
-    let ratio = moyenneGlobale > 0 ? (top5Moyenne / moyenneGlobale) : 1;
-    let indiceConfiance = Math.min(95, Math.max(35, Math.round(ratio * 22)));
+    const finalMachines = [];
+    for (const item of rankedMachines) {
+        if (!finalWinners.includes(item.numero)) {
+            finalMachines.push(item.numero);
+        }
+        if (finalMachines.length === 5) break;
+    }
+
+    // 5. Indice de convergence basé sur l'avance du Top 5 par rapport aux 85 autres numéros
+    const top5Sum = rankedWinners.slice(0, 5).reduce((acc, item) => acc + item.score, 0);
+    const totalSum = rankedWinners.reduce((acc, item) => acc + item.score, 0);
+    const top5Avg = top5Sum / 5;
+    const othersAvg = totalSum > top5Sum ? (totalSum - top5Sum) / 85 : 0;
+
+    let indiceConfiance = 20;
+    if (othersAvg > 0) {
+        const liftRatio = top5Avg / othersAvg;
+        indiceConfiance = Math.min(90, Math.max(15, Math.round(((liftRatio - 1) / 4) * 75 + 20)));
+    }
 
     // Affichage des boules
-    renderBalls('predictedWinners', finalWinners.sort((a, b) => a - b), 'ball-winner');
-    renderBalls('predictedMachines', finalMachines.sort((a, b) => a - b), 'ball-machine');
+    renderBalls('predictedWinners', [...finalWinners].sort((a, b) => a - b), 'ball-winner');
+    renderBalls('predictedMachines', [...finalMachines].sort((a, b) => a - b), 'ball-machine');
 
     // Texte explicatif et badge de l'Indice de Convergence
     const coldLabels = coldDizaines.map(d => `${d * 10 + 1}-${(d + 1) * 10}`).join(', ');
-    const badgeColor = indiceConfiance >= 60 ? '#16a34a' : '#d97706';
-    const badgeText = indiceConfiance >= 60 ? '🟢 Signal Fort (Forte convergence)' : '🟠 Dispersion modérée';
+    const badgeColor = indiceConfiance >= 65 ? '#16a34a' : (indiceConfiance >= 40 ? '#d97706' : '#64748b');
+    const badgeText = indiceConfiance >= 65
+        ? '🟢 Signal concentré (Forte convergence)'
+        : (indiceConfiance >= 40 ? '🟠 Convergence modérée' : '⚪ Dispersion élevée (Signal faible)');
 
-    document.getElementById('statsAnalysis').innerHTML = `
-        <div style="margin-bottom: 8px; font-weight: bold; color: ${badgeColor}; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 6px;">
-            Indice de convergence : ${indiceConfiance}% — ${badgeText}
-        </div>
-        <strong>Logique appliquée (${pad(targetHour)}H) :</strong><br>
-        • Dizaines froides ciblées : <b>${coldLabels}</b><br>
-        • Affinité horaire & Récence pondérées dans la matrice.
-    `;
+    const statsEl = document.getElementById('statsAnalysis');
+    if (statsEl) {
+        statsEl.innerHTML = `
+            <div style="margin-bottom: 8px; font-weight: bold; color: ${badgeColor}; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 6px;">
+                Indice de convergence : ${indiceConfiance}% — ${badgeText}
+            </div>
+            <strong>Logique appliquée (${pad(targetHour)}H) :</strong><br>
+            • Dizaines les moins présentes (5 derniers tirages) : <b>${coldLabels}</b><br>
+            • Affinité horaire (${pad(targetHour)}H), récence progressive et voisins (±1) pondérés sur 1–90.
+        `;
+    }
 }
 
 function renderBalls(containerId, numbers, cssClass) {
     const container = document.getElementById(containerId);
+    if (!container) return;
     container.innerHTML = '';
     numbers.forEach(num => {
         const div = document.createElement('div');
@@ -203,11 +260,11 @@ async function handleMultipleImageUpload(event) {
     let addedCount = 0;
 
     for (let i = 0; i < files.length; i++) {
-        statusDiv.textContent = `🔍 Analyse de l'image ${i + 1} sur ${files.length}...`;
+        if (statusDiv) statusDiv.textContent = `🔍 Analyse de l'image ${i + 1} sur ${files.length}...`;
         try {
             const { data: { text } } = await Tesseract.recognize(files[i], 'eng');
             const draws = parseMultipleDrawsFromText(text);
-            
+
             draws.forEach(draw => {
                 const exists = drawHistory.some(d => d.label === draw.label && d.winners.toString() === draw.winners.toString());
                 if (!exists && draw.winners.length === 5 && draw.machines.length === 5) {
@@ -225,16 +282,16 @@ async function handleMultipleImageUpload(event) {
         saveHistory();
         renderHistory();
         generateHybridPrediction();
-        statusDiv.textContent = `✨ Succès ! ${addedCount} tirage(s) extrait(s) et ajoutés à l'historique !`;
+        if (statusDiv) statusDiv.textContent = `✨ Succès ! ${addedCount} tirage(s) extrait(s) et ajoutés à l'historique !`;
     } else {
-        statusDiv.textContent = "⚠️ Aucun nouveau tirage valide n'a pu être découpé automatiquement.";
+        if (statusDiv) statusDiv.textContent = "⚠️ Aucun nouveau tirage valide n'a pu être découpé automatiquement.";
     }
 }
 
 function parseMultipleDrawsFromText(text) {
-    let draws = [];
+    const draws = [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
+
     let currentLabel = null;
     let collectedNumbers = [];
 
@@ -255,7 +312,7 @@ function parseMultipleDrawsFromText(text) {
         const nums = line.match(/\b([0-9]{1,2})\b/g);
         if (nums) {
             nums.forEach(n => {
-                let val = parseInt(n, 10);
+                const val = parseInt(n, 10);
                 if (val >= 1 && val <= 90) {
                     if (!(hourMatch && parseInt(hourMatch[1], 10) === val && collectedNumbers.length === 0)) {
                         collectedNumbers.push(val);
@@ -285,9 +342,13 @@ function parseInputNumbers(str) {
 }
 
 function addNewDraw() {
-    const label = document.getElementById('drawLabel').value.trim() || "Tirage";
-    const winners = parseInputNumbers(document.getElementById('inputWinners').value);
-    const machines = parseInputNumbers(document.getElementById('inputMachines').value);
+    const labelEl = document.getElementById('drawLabel');
+    const winnersEl = document.getElementById('inputWinners');
+    const machinesEl = document.getElementById('inputMachines');
+
+    const label = (labelEl ? labelEl.value.trim() : '') || "Tirage";
+    const winners = parseInputNumbers(winnersEl ? winnersEl.value : '');
+    const machines = parseInputNumbers(machinesEl ? machinesEl.value : '');
 
     if (winners.length !== 5 || machines.length !== 5) {
         alert("Veuillez saisir exactement 5 numéros valides (entre 1 et 90) pour les gagnants et 5 pour les machines.");
@@ -301,11 +362,13 @@ function addNewDraw() {
     renderHistory();
     generateHybridPrediction();
 
-    document.getElementById('drawLabel').value = '';
-    document.getElementById('inputWinners').value = '';
-    document.getElementById('inputMachines').value = '';
-    if(document.getElementById('ocrStatus')) {
-        document.getElementById('ocrStatus').textContent = '';
+    if (labelEl) labelEl.value = '';
+    if (winnersEl) winnersEl.value = '';
+    if (machinesEl) machinesEl.value = '';
+
+    const ocrStatusEl = document.getElementById('ocrStatus');
+    if (ocrStatusEl) {
+        ocrStatusEl.textContent = '';
     }
 }
 
@@ -315,6 +378,7 @@ function saveHistory() {
 
 function renderHistory() {
     const list = document.getElementById('historyList');
+    if (!list) return;
     list.innerHTML = '';
     drawHistory.forEach(item => {
         const div = document.createElement('div');
