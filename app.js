@@ -1,21 +1,18 @@
 /* ==========================================================================
    LOTO 5/90 RESEARCH LAB — app.js
-   VERSION 14.2 — Dev.Assamoi / H@B
+   VERSION 14.3 — Dev.Assamoi / H@B
 
-   Laboratoire statistique :
+   Laboratoire statistique & test de règles heuristiques :
    - Historique des tirages actuels : 5 gagnants + 5 machines
    - Archives historiques séparées : 6 numéros
    - Analyse chronologique sans fuite temporelle
    - Fréquences, retards, parités, sommes et dizaines
    - Analyse par heure (01H à 23H) + Base de 2 boules
-   - Matrice hybride
-   - Backtesting avec comparaison aléatoire
-   - Import / export JSON
-   - Ajout, suppression et filtrage de tirages
-   - OCR avec Tesseract.js si disponible
+   - Pistes heuristiques inspirées du document PDF (Code 25 / Répétés)
+   - Matrice hybride, Backtesting, Import/Export JSON, Filtres & OCR
 
    IMPORTANT :
-   Les scores sont des indicateurs descriptifs.
+   Les scores et règles heuristiques sont des indicateurs expérimentaux.
    Ils ne prédisent pas avec certitude les tirages futurs.
    ========================================================================== */
 
@@ -25,7 +22,7 @@
    1. CONFIGURATION
    ========================================================================== */
 
-const APP_VERSION = "14.2";
+const APP_VERSION = "14.3";
 
 const STORAGE_KEY = "loto590_history_v12";
 const ARCHIVE_STORAGE_KEY = "loto590_archive_1993_2011_v12";
@@ -47,6 +44,7 @@ const ARCHIVE_NUMBER_COUNT = 6;
 
 const DEFAULT_TARGET_HOUR = "10H";
 const MAX_RECENT_DRAWS = 15;
+const DEFAULT_COUNTRY_CODE = 25; // Côte d'Ivoire (+225 -> 25)
 
 /* --------------------------------------------------------------------------
    BASE HISTORIQUE INITIALE (SEED_HISTORY)
@@ -817,7 +815,104 @@ function analyzeForSpecificHour(targetDate, hourLabel) {
 }
 
 /* ==========================================================================
-   9. MATRICE HYBRIDE & AFFICHAGE
+   9. PISTES HEURISTIQUES (MÉTHODE PDF : CODE 25 & RÉPÉTITIONS)
+   ========================================================================== */
+
+function clampLotoNum(n) {
+  const val = Number(n);
+  if (!Number.isInteger(val)) return null;
+  let res = val;
+  while (res > NUMBER_MAX) res -= NUMBER_MAX;
+  while (res < NUMBER_MIN) res += NUMBER_MAX;
+  return res >= NUMBER_MIN && res <= NUMBER_MAX ? res : null;
+}
+
+function computePdfMethodSuggestions(analysis, countryCode = DEFAULT_COUNTRY_CODE) {
+  const dayNum = getDayOfMonth(analysis.targetDate) || 1;
+  const code = Number(countryCode) || DEFAULT_COUNTRY_CODE;
+
+  // Règle 1 : Codes 50, 63, 75 + jour - code pays (25)[span_2](start_span)[span_2](end_span)
+  const m1 = [50, 63, 75]
+    .map(base => clampLotoNum(base + dayNum - code))
+    .filter(Boolean);
+
+  // Règle 2 : 3 premiers gagnants du dernier tirage antérieur + code pays (modulo 90 si > 90)[span_3](start_span)[span_3](end_span)
+  const lastPastDraw = analysis.pastDraws[analysis.pastDraws.length - 1];
+  const lastWinners = safeArray(lastPastDraw?.winners).slice(0, 3);
+  const m2 = lastWinners
+    .map(w => {
+      const sum = w + code;
+      return clampLotoNum(sum > NUMBER_MAX ? sum - NUMBER_MAX : sum);
+    })
+    .filter(Boolean);
+
+  // Règle 3 : Chiffre répété dans les tirages récents -> suite (+1)[span_4](start_span)[span_4](end_span)
+  const recentPast = analysis.pastDraws.slice(-8);
+  const repeatedNext = [];
+
+  recentPast.forEach(draw => {
+    const counts = {};
+    [...safeArray(draw.winners), ...safeArray(draw.machines)].forEach(num => {
+      String(num).split("").forEach(ch => {
+        counts[ch] = (counts[ch] || 0) + 1;
+      });
+    });
+
+    Object.keys(counts).forEach(ch => {
+      if (counts[ch] >= 2) {
+        const doubleVal = Number(ch) * 10 + Number(ch);
+        const nextVal = clampLotoNum(doubleVal + 1);
+        if (nextVal && !repeatedNext.includes(nextVal)) {
+          repeatedNext.push(nextVal);
+        }
+      }
+    });
+  });
+
+  return {
+    m1: uniqueNumbers(m1),
+    m2: uniqueNumbers(m2),
+    repeatedNext: repeatedNext.slice(0, 5)
+  };
+}
+
+function renderPdfMethodSuggestions(analysis) {
+  let container = $("pdfMethodSuggestions");
+  if (!container) {
+    const statsCard = $("statsAnalysis")?.closest(".card");
+    if (!statsCard) return;
+
+    const section = document.createElement("section");
+    section.className = "card";
+    section.innerHTML = `
+      <h2>📘 Test Pistes Méthode PDF (Code 25 / Répétés)</h2>
+      <p class="section-description">
+        Pistes expérimentales basées sur les règles du document (codes + jour − 25, 3 gagnants précédents + 25, chiffres répétés + 1)[span_5](start_span)[span_5](end_span).
+      </p>
+      <div id="pdfMethodSuggestions" class="stats-summary"></div>
+    `;
+    statsCard.insertAdjacentElement("afterend", section);
+    container = $("pdfMethodSuggestions");
+  }
+
+  const sugg = computePdfMethodSuggestions(analysis, DEFAULT_COUNTRY_CODE);
+  const dayNum = getDayOfMonth(analysis.targetDate) || 1;
+
+  container.innerHTML = `
+    <div><strong>M1 (50/63/75 + J${dayNum} − 25) :</strong> ${
+      sugg.m1.length ? sugg.m1.map(pad2).join(" - ") : "—"
+    }</div>
+    <div><strong>M2 (3 Gagnants précédents + 25 / mod 90) :</strong> ${
+      sugg.m2.length ? sugg.m2.map(pad2).join(" - ") : "—"
+    }</div>
+    <div><strong>Règle répétition (+1) :</strong> ${
+      sugg.repeatedNext.length ? sugg.repeatedNext.map(pad2).join(" - ") : "Aucun chiffre répété récent"
+    }</div>
+  `;
+}
+
+/* ==========================================================================
+   10. MATRICE HYBRIDE & AFFICHAGE
    ========================================================================== */
 
 function generateHybridMatrix(targetDate, hourLabel) {
@@ -928,6 +1023,7 @@ function renderAnalysis(analysis) {
 
   renderHybridMatrix(analysis.matrix || []);
   renderGeneralStatistics(analysis);
+  renderPdfMethodSuggestions(analysis);
 }
 
 function renderHybridMatrix(matrix) {
@@ -1017,7 +1113,7 @@ function calculateAnalysis() {
 }
 
 /* ==========================================================================
-   10. ANALYSE DES HORAIRES (01H À 23H)
+   11. ANALYSE DES HORAIRES (01H À 23H)
    ========================================================================== */
 
 function renderHourButtons() {
@@ -1116,7 +1212,7 @@ function renderAllHoursSchedule() {
 }
 
 /* ==========================================================================
-   11. HISTORIQUE ACTUEL, AJOUT, SUPPRESSION & FILTRES
+   12. HISTORIQUE ACTUEL, AJOUT, SUPPRESSION & FILTRES
    ========================================================================== */
 
 function ensureHistoryFiltersUI() {
@@ -1297,7 +1393,7 @@ function handleAddDraw(event) {
 }
 
 /* ==========================================================================
-   12. ARCHIVES, IMPORT / EXPORT JSON & BACKTESTING
+   13. ARCHIVES, IMPORT / EXPORT JSON & BACKTESTING
    ========================================================================== */
 
 function renderArchiveHistory() {
@@ -1508,7 +1604,7 @@ function handleBacktest() {
 }
 
 /* ==========================================================================
-   13. OCR, FILTRES, SYNCHRO DATES & INITIALISATION
+   14. OCR, FILTRES, SYNCHRO DATES & INITIALISATION
    ========================================================================== */
 
 function extractDateFromOCR(text) {
@@ -1803,7 +1899,7 @@ function ensureDataToolsUI() {
 
 function renderAppInformation() {
   const version = $("appVersion");
-  if (version) version.textContent = `Version ${APP_VERSION}`;
+  if (version) version.textContent = `RESEARCH LAB v${APP_VERSION}`;
 
   const currentCount = $("currentHistoryCount");
   if (currentCount) currentCount.textContent = String(drawHistory.length);
@@ -1856,6 +1952,7 @@ window.Loto590 = {
     return [...archiveHistory];
   },
   analyze: analyzeForSpecificHour,
+  pdfSuggestions: computePdfMethodSuggestions,
   calculate: calculateAnalysis,
   allHours: renderAllHoursSchedule,
   addDraw(entry) {
