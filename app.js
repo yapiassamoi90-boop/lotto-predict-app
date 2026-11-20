@@ -1,585 +1,1064 @@
+
 /* ==========================================================================
-   LOTO 5/90 ANALYZER PRO — app.js (v11.4 — Dev.Assamoi / H@B)
+   LOTO 5/90 RESEARCH LAB — app.js
+   VERSION 13.0 — RESEARCH ENGINE
+   Dev.Assamoi / H@B
+
+   - Historique actuel : 5 gagnants + 5 machines
+   - Archives anciennes : 6 numéros conservés
+   - Filtrage chronologique strict
+   - Détection des doublons et anomalies
+   - Statistiques, fréquences, retards et paires
+   - Backtesting déterministe
+   - Import / export JSON
+   - OCR avec validation avant enregistrement
    ========================================================================== */
 
-const STORAGE_KEY = 'loto590_history_v11';
-const DAY_NAMES_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+"use strict";
 
-/* --------------------------------------------------------------------------
-   1. BASE HISTORIQUE INITIALE (SEED_HISTORY)
-   -------------------------------------------------------------------------- */
-const SEED_HISTORY = [
-  // --- 19/11/2026 (Jeudi) ---
-  { date: '2026-11-19', hour: '13H', winners: [77, 84, 27, 38, 82], machines: [52, 61, 49, 19, 14] },
-  { date: '2026-11-19', hour: '10H', winners: [90, 51, 74, 48, 13], machines: [82, 25, 83, 52, 59] },
-  { date: '2026-11-19', hour: '08H', winners: [17, 26, 87, 21, 68], machines: [2, 1, 7, 73, 74] },
-  { date: '2026-11-19', hour: '07H', winners: [42, 58, 74, 19, 30], machines: [81, 24, 27, 21, 39] },
+const STORAGE_KEY = "loto590_history_v12";
+const ARCHIVE_STORAGE_KEY = "loto590_archive_1993_2011_v12";
 
-  // --- 18/11/2026 (Mercredi) ---
-  { date: '2026-11-18', hour: '23H', winners: [7, 81, 82, 85, 40], machines: [42, 31, 19, 26, 79] },
-  { date: '2026-11-18', hour: '22H', winners: [17, 3, 72, 34, 85], machines: [14, 73, 62, 41, 22] },
-  { date: '2026-11-18', hour: '21H', winners: [41, 42, 48, 72, 38], machines: [47, 56, 18, 22, 20] },
-  { date: '2026-11-18', hour: '18H', winners: [78, 13, 25, 90, 44], machines: [77, 23, 9, 7, 80] },
-  { date: '2026-11-18', hour: '16H', winners: [85, 73, 34, 16, 47], machines: [22, 13, 14, 36, 64] },
-  { date: '2026-11-18', hour: '13H', winners: [37, 42, 38, 36, 18], machines: [81, 19, 26, 10, 44] },
-  { date: '2026-11-18', hour: '10H', winners: [82, 54, 2, 49, 19], machines: [43, 5, 11, 37, 6] },
-  { date: '2026-11-18', hour: '08H', winners: [47, 86, 10, 63, 46], machines: [67, 38, 71, 32, 74] },
-  { date: '2026-11-18', hour: '07H', winners: [70, 66, 61, 29, 75], machines: [39, 81, 40, 8, 17] },
-
-  // --- 17/11/2026 (Mardi) ---
-  { date: '2026-11-17', hour: '23H', winners: [69, 88, 52, 1, 35], machines: [39, 8, 64, 22, 71] },
-  { date: '2026-11-17', hour: '22H', winners: [56, 78, 75, 14, 4], machines: [67, 89, 6, 87, 18] },
-  { date: '2026-11-17', hour: '21H', winners: [77, 56, 29, 49, 10], machines: [21, 81, 43, 54, 28] },
-  { date: '2026-11-17', hour: '18H', winners: [65, 36, 87, 19, 73], machines: [86, 7, 9, 76, 32] },
-  { date: '2026-11-17', hour: '16H', winners: [65, 23, 40, 41, 50], machines: [26, 59, 13, 22, 7] },
-  { date: '2026-11-17', hour: '13H', winners: [50, 21, 59, 85, 25], machines: [3, 35, 5, 27, 28] },
-  { date: '2026-11-17', hour: '10H', winners: [9, 13, 21, 29, 38], machines: [58, 78, 57, 44, 70] },
-  { date: '2026-11-17', hour: '08H', winners: [73, 63, 49, 70, 16], machines: [28, 37, 50, 82, 10] },
-  { date: '2026-11-17', hour: '07H', winners: [20, 15, 88, 81, 80], machines: [25, 41, 82, 58, 56] },
-
-  // --- 16/11/2026 (Lundi) ---
-  { date: '2026-11-16', hour: '23H', winners: [3, 20, 13, 50, 25], machines: [30, 86, 51, 46, 26] },
-  { date: '2026-11-16', hour: '22H', winners: [20, 30, 13, 87, 59], machines: [22, 90, 35, 80, 3] },
-  { date: '2026-11-16', hour: '21H', winners: [60, 15, 51, 48, 41], machines: [71, 24, 4, 5, 57] },
-  { date: '2026-11-16', hour: '18H', winners: [68, 3, 58, 6, 38], machines: [15, 21, 13, 84, 69] },
-  { date: '2026-11-16', hour: '16H', winners: [76, 29, 60, 19, 67], machines: [24, 81, 10, 18, 49] },
-  { date: '2026-11-16', hour: '13H', winners: [65, 79, 88, 87, 45], machines: [2, 29, 59, 28, 46] },
-  { date: '2026-11-16', hour: '10H', winners: [24, 65, 54, 63, 45], machines: [51, 8, 20, 28, 59] },
-  { date: '2026-11-16', hour: '08H', winners: [48, 38, 21, 5, 68], machines: [36, 57, 73, 59, 78] },
-  { date: '2026-11-16', hour: '07H', winners: [19, 54, 37, 39, 20], machines: [64, 10, 38, 82, 62] },
-
-  // --- 15/11/2026 (Dimanche) ---
-  { date: '2026-11-15', hour: '23H', winners: [15, 56, 39, 76, 21], machines: [59, 65, 68, 25, 26] },
-  { date: '2026-11-15', hour: '22H', winners: [60, 83, 33, 63, 89], machines: [11, 22, 78, 44, 75] },
-  { date: '2026-11-15', hour: '21H', winners: [65, 48, 77, 15, 14], machines: [36, 79, 21, 82, 30] },
-  { date: '2026-11-15', hour: '20H', winners: [71, 52, 14, 37, 3], machines: [33, 70, 12, 47, 8] },
-  { date: '2026-11-15', hour: '18H', winners: [81, 85, 58, 51, 71], machines: [43, 50, 38, 18, 66] },
-  { date: '2026-11-15', hour: '16H', winners: [76, 64, 63, 48, 16], machines: [36, 30, 3, 34, 37] },
-  { date: '2026-11-15', hour: '13H', winners: [29, 11, 28, 35, 43], machines: [38, 54, 37, 75, 59] },
-  { date: '2026-11-15', hour: '10H', winners: [64, 33, 16, 22, 71], machines: [37, 90, 11, 35, 2] },
-  { date: '2026-11-15', hour: '08H', winners: [79, 62, 10, 81, 88], machines: [83, 34, 75, 76, 16] },
-  { date: '2026-11-15', hour: '07H', winners: [58, 83, 78, 49, 79], machines: [13, 74, 71, 39, 31] },
-  { date: '2026-11-15', hour: '03H', winners: [60, 35, 50, 33, 53], machines: [79, 52, 41, 81, 30] },
-  { date: '2026-11-15', hour: '01H', winners: [26, 18, 63, 53, 1], machines: [21, 88, 77, 46, 60] },
-
-  // --- 30/10/2026 (Vendredi) ---
-  { date: '2026-10-30', hour: '23H', winners: [1, 51, 88, 19, 60], machines: [47, 37, 23, 82, 21] },
-  { date: '2026-10-30', hour: '22H', winners: [77, 64, 36, 78, 38], machines: [87, 66, 47, 61, 43] },
-  { date: '2026-10-30', hour: '21H', winners: [17, 16, 57, 56, 60], machines: [38, 10, 28, 11, 25] },
-  { date: '2026-10-30', hour: '18H', winners: [16, 7, 9, 40, 36], machines: [67, 42, 30, 53, 38] },
-  { date: '2026-10-30', hour: '16H', winners: [39, 22, 75, 67, 74], machines: [80, 76, 43, 44, 43] },
-  { date: '2026-10-30', hour: '13H', winners: [19, 52, 70, 35, 81], machines: [28, 69, 1, 5, 74] },
-  { date: '2026-10-30', hour: '10H', winners: [76, 33, 70, 64, 67], machines: [73, 82, 43, 88, 19] },
-  { date: '2026-10-30', hour: '08H', winners: [60, 22, 72, 59, 46], machines: [3, 8, 20, 56, 2] },
-  { date: '2026-10-30', hour: '07H', winners: [80, 27, 18, 2, 76], machines: [21, 25, 77, 70, 31] },
-
-  // --- 29/10/2026 (Jeudi) ---
-  { date: '2026-10-29', hour: '21H', winners: [72, 22, 10, 41, 11], machines: [38, 15, 45, 7, 13] },
-  { date: '2026-10-29', hour: '18H', winners: [33, 38, 4, 82, 55], machines: [3, 10, 53, 65, 70] },
-  { date: '2026-10-29', hour: '16H', winners: [83, 70, 51, 82, 49], machines: [31, 80, 38, 47, 78] },
-  { date: '2026-10-29', hour: '13H', winners: [68, 8, 69, 3, 42], machines: [4, 39, 87, 76, 60] },
-  { date: '2026-10-29', hour: '10H', winners: [84, 57, 45, 50, 79], machines: [21, 42, 76, 69, 3] },
-  { date: '2026-10-29', hour: '08H', winners: [38, 11, 53, 7, 18], machines: [36, 48, 20, 64, 43] },
-  { date: '2026-10-29', hour: '07H', winners: [23, 35, 17, 20, 15], machines: [52, 44, 31, 88, 10] },
-
-  // --- 29/09/2026 (Mardi) ---
-  { date: '2026-09-29', hour: '23H', winners: [68, 39, 48, 63, 61], machines: [15, 28, 32, 40, 24] },
-  { date: '2026-09-29', hour: '22H', winners: [66, 51, 45, 59, 10], machines: [27, 75, 7, 72, 21] },
-  { date: '2026-09-29', hour: '21H', winners: [63, 10, 3, 36, 71], machines: [76, 80, 69, 60, 58] },
-  { date: '2026-09-29', hour: '18H', winners: [1, 6, 90, 59, 57], machines: [81, 77, 19, 35, 32] },
-  { date: '2026-09-29', hour: '16H', winners: [26, 31, 73, 14, 29], machines: [25, 59, 6, 64, 10] },
-  { date: '2026-09-29', hour: '13H', winners: [48, 74, 13, 56, 36], machines: [31, 57, 89, 45, 80] },
-  { date: '2026-09-29', hour: '10H', winners: [36, 23, 64, 6, 62], machines: [14, 52, 73, 19, 29] },
-  { date: '2026-09-29', hour: '08H', winners: [9, 14, 38, 33, 45], machines: [55, 67, 72, 90, 49] },
-  { date: '2026-09-29', hour: '07H', winners: [71, 80, 11, 17, 74], machines: [48, 61, 23, 14, 3] },
-
-  // --- 28/09/2026 (Lundi) ---
-  { date: '2026-09-28', hour: '23H', winners: [41, 20, 6, 3, 33], machines: [56, 35, 77, 51, 61] },
-  { date: '2026-09-28', hour: '22H', winners: [72, 30, 3, 67, 61], machines: [45, 84, 17, 36, 66] },
-  { date: '2026-09-28', hour: '21H', winners: [61, 67, 83, 65, 42], machines: [19, 33, 37, 72, 22] },
-  { date: '2026-09-28', hour: '18H', winners: [6, 70, 57, 18, 87], machines: [21, 22, 26, 84, 55] },
-  { date: '2026-09-28', hour: '16H', winners: [2, 21, 27, 90, 14], machines: [67, 60, 4, 48, 57] },
-  { date: '2026-09-28', hour: '13H', winners: [81, 10, 24, 23, 54], machines: [51, 88, 52, 57, 63] },
-  { date: '2026-09-28', hour: '10H', winners: [30, 54, 61, 4, 42], machines: [69, 32, 35, 49, 52] },
-  { date: '2026-09-28', hour: '08H', winners: [27, 21, 87, 23, 62], machines: [48, 10, 40, 38, 90] },
-  { date: '2026-09-28', hour: '07H', winners: [70, 85, 58, 33, 17], machines: [19, 73, 60, 63, 67] },
-
-  // --- 27/09/2026 (Dimanche) ---
-  { date: '2026-09-27', hour: '23H', winners: [33, 26, 9, 29, 59], machines: [44, 75, 52, 39, 5] },
-  { date: '2026-09-27', hour: '21H', winners: [77, 43, 24, 75, 3], machines: [36, 10, 39, 37, 38] },
-  { date: '2026-09-27', hour: '20H', winners: [12, 90, 13, 45, 18], machines: [84, 32, 27, 78, 7] },
-  { date: '2026-09-27', hour: '18H', winners: [68, 63, 47, 53, 36], machines: [12, 20, 88, 14, 4] },
-  { date: '2026-09-27', hour: '16H', winners: [75, 15, 55, 62, 20], machines: [52, 39, 68, 83, 90] },
-  { date: '2026-09-27', hour: '13H', winners: [15, 22, 32, 68, 56], machines: [57, 19, 78, 12, 24] },
-  { date: '2026-09-27', hour: '10H', winners: [70, 51, 86, 53, 39], machines: [7, 83, 24, 55, 18] },
-  { date: '2026-09-27', hour: '08H', winners: [58, 42, 29, 78, 52], machines: [13, 39, 67, 88, 1] },
-  { date: '2026-09-27', hour: '07H', winners: [58, 11, 29, 80, 10], machines: [32, 39, 47, 72, 62] },
-  { date: '2026-09-27', hour: '03H', winners: [86, 76, 26, 6, 67], machines: [74, 36, 79, 62, 80] },
-  { date: '2026-09-27', hour: '01H', winners: [77, 59, 69, 28, 65], machines: [82, 74, 43, 12, 38] },
-
-  // --- 26/09/2026 (Samedi) ---
-  { date: '2026-09-26', hour: '23H', winners: [74, 21, 49, 88, 81], machines: [75, 39, 38, 44, 48] },
-  { date: '2026-09-26', hour: '22H', winners: [19, 25, 37, 21, 72], machines: [70, 3, 48, 74, 75] },
-  { date: '2026-09-26', hour: '21H', winners: [14, 13, 70, 15, 40], machines: [31, 41, 51, 63, 67] },
-  { date: '2026-09-26', hour: '18H', winners: [33, 80, 74, 65, 22], machines: [23, 50, 30, 61, 38] },
-  { date: '2026-09-26', hour: '16H', winners: [79, 62, 82, 20, 6], machines: [35, 87, 64, 63, 42] },
-  { date: '2026-09-26', hour: '13H', winners: [63, 70, 32, 30, 21], machines: [72, 25, 90, 29, 60] },
-  { date: '2026-09-26', hour: '10H', winners: [18, 59, 40, 5, 83], machines: [24, 38, 43, 29, 8] },
-  { date: '2026-09-26', hour: '08H', winners: [25, 68, 3, 50, 30], machines: [12, 41, 63, 19, 32] },
-  { date: '2026-09-26', hour: '07H', winners: [73, 77, 42, 27, 45], machines: [67, 4, 17, 84, 3] },
-  { date: '2026-09-26', hour: '03H', winners: [34, 10, 25, 39, 32], machines: [5, 67, 82, 57, 27] },
-  { date: '2026-09-26', hour: '01H', winners: [84, 54, 11, 68, 89], machines: [40, 82, 69, 55, 76] }
+const DAY_NAMES_FR = [
+  "Dimanche", "Lundi", "Mardi", "Mercredi",
+  "Jeudi", "Vendredi", "Samedi"
 ];
 
-/* --------------------------------------------------------------------------
-   2. ÉTAT GLOBAL & UTILITAIRES DATE / JOUR
-   -------------------------------------------------------------------------- */
-let selectedHour = '10H';
+const HOURS = [
+  "07H", "10H", "13H", "16H", "19H", "21H"
+];
+
+/*
+  IMPORTANT :
+  Conserve ici le tableau SEED_HISTORY de ton ancien app.js.
+  Il contient tes tirages initiaux 2026.
+  Ne remplace pas tes anciennes données par des données inventées.
+*/
+const SEED_HISTORY = [];
+
 let drawHistory = [];
+let archiveHistory = [];
+let selectedHour = "07H";
+let currentAnalysis = null;
 
-function formatHourLabel(raw) {
-  const match = String(raw || '').trim().match(/(\d{1,2})/);
-  if (!match) return '10H';
-  const num = Math.min(23, Math.max(0, parseInt(match[1], 10)));
-  return `${String(num).padStart(2, '0')}H`;
+/* ==========================================================================
+   OUTILS DE BASE
+   ========================================================================== */
+
+function validNumber(n) {
+  const value = Number(n);
+  return Number.isInteger(value) && value >= 1 && value <= 90;
 }
 
-function parseISODate(dateStr) {
-  const parts = (dateStr || '').split('-').map(Number);
-  if (parts.length === 3 && !parts.some(Number.isNaN)) {
-    return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+function normalizeDate(date) {
+  if (!date) return "";
+
+  const d = String(date).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+
+  const parsed = new Date(d);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function normalizeHour(hour) {
+  if (!hour) return "00H";
+
+  return String(hour)
+    .trim()
+    .toUpperCase()
+    .replace(/\s/g, "")
+    .replace(/^(\d{1,2})$/, "$1H");
+}
+
+function normalizeCurrentEntry(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const date = normalizeDate(raw.date);
+  const hour = normalizeHour(raw.hour);
+
+  const winners = Array.isArray(raw.winners)
+    ? raw.winners.map(Number).filter(validNumber).slice(0, 5)
+    : [];
+
+  const machines = Array.isArray(raw.machines)
+    ? raw.machines.map(Number).filter(validNumber).slice(0, 5)
+    : [];
+
+  if (!date || winners.length !== 5 || machines.length !== 5) {
+    return null;
   }
-  return new Date(Date.UTC(2026, 10, 19));
-}
 
-function getDayOfWeek(dateStr) {
-  return parseISODate(dateStr).getUTCDay();
-}
-
-function formatFRDate(dateStr) {
-  const parts = (dateStr || '').split('-');
-  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  return dateStr || '19/11/2026';
-}
-
-function normalizeEntry(raw) {
-  const dateStr = raw.date || '2026-11-19';
-  const hourStr = formatHourLabel(raw.hour || '07H');
-  const winners = (raw.winners || []).map(Number).filter(n => n >= 1 && n <= 90).slice(0, 5);
-  const machines = (raw.machines || []).map(Number).filter(n => n >= 1 && n <= 90).slice(0, 5);
   return {
-    id: `${dateStr}_${hourStr}`,
-    date: dateStr,
-    dayOfWeek: typeof raw.dayOfWeek === 'number' ? raw.dayOfWeek : getDayOfWeek(dateStr),
-    hour: hourStr,
+    date,
+    hour,
     winners,
     machines
   };
 }
 
-function deduplicateAndSort(entries) {
-  const map = new Map();
-  entries.forEach(item => {
-    const norm = normalizeEntry(item);
-    map.set(norm.id, norm);
-  });
-  return Array.from(map.values()).sort((a, b) => {
-    if (a.date !== b.date) return b.date.localeCompare(a.date);
-    return b.hour.localeCompare(a.hour);
-  });
+/* Archives : six numéros, sans transformation en cinq numéros. */
+function normalizeArchiveEntry(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const date = normalizeDate(raw.date);
+  const source = Array.isArray(raw.numeros)
+    ? raw.numeros
+    : Array.isArray(raw.numbers)
+      ? raw.numbers
+      : [];
+
+  const numeros = source.map(Number).filter(validNumber);
+
+  if (!date || numeros.length !== 6) return null;
+
+  return {
+    date,
+    numeros
+  };
 }
 
-function loadHistory() {
+function compareEntries(a, b) {
+  const dateCompare = a.date.localeCompare(b.date);
+  if (dateCompare !== 0) return dateCompare;
+
+  return String(a.hour || "").localeCompare(String(b.hour || ""));
+}
+
+function safeParseJSON(value, fallback = []) {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (Array.isArray(saved) && saved.length > 0) {
-      drawHistory = deduplicateAndSort([...SEED_HISTORY, ...saved]);
-    } else {
-      drawHistory = deduplicateAndSort(SEED_HISTORY);
-    }
-  } catch (e) {
-    drawHistory = deduplicateAndSort(SEED_HISTORY);
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
   }
-  saveHistory();
 }
 
 function saveHistory() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(drawHistory));
-  } catch (e) {
-    console.warn('Stockage local indisponible :', e);
-  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(drawHistory));
 }
 
-/* --------------------------------------------------------------------------
-   3. INITIALISATION UI & ÉVÉNEMENTS
-   -------------------------------------------------------------------------- */
-document.addEventListener('DOMContentLoaded', () => {
-  loadHistory();
-  bindDateSync();
-  bindHourButtons();
-  bindOCRUpload();
-
-  renderHistory();
-  generateHybridMatrix();
-
-  const calcBtn = document.getElementById('btnCalculate');
-  if (calcBtn) calcBtn.addEventListener('click', generateHybridMatrix);
-
-  const addForm = document.getElementById('addDrawForm');
-  if (addForm) addForm.addEventListener('submit', handleAddDraw);
-
-  const resetBtn = document.getElementById('btnReset');
-  if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
-      localStorage.removeItem(STORAGE_KEY);
-      drawHistory = deduplicateAndSort(SEED_HISTORY);
-      saveHistory();
-      renderHistory();
-      generateHybridMatrix();
-    });
-  }
-});
-
-function bindDateSync() {
-  const targetDateEl = document.getElementById('targetDate');
-  const dateCurrEl = document.getElementById('dateCurrent');
-  const datePrevEl = document.getElementById('datePrev');
-
-  if (targetDateEl && dateCurrEl && datePrevEl) {
-    const syncFromTarget = () => {
-      const parts = (targetDateEl.value || '2026-11-19').split('-').map(Number);
-      if (parts.length === 3 && !parts.some(Number.isNaN)) {
-        const dayNum = parts[2];
-        dateCurrEl.value = dayNum;
-        datePrevEl.value = dayNum > 1 ? dayNum - 1 : 30;
-      }
-      generateHybridMatrix();
-    };
-
-    targetDateEl.addEventListener('change', syncFromTarget);
-    dateCurrEl.addEventListener('change', () => {
-      const d = Math.min(30, Math.max(1, Number(dateCurrEl.value) || 19));
-      const baseParts = (targetDateEl.value || '2026-11-19').split('-');
-      targetDateEl.value = `${baseParts[0] || '2026'}-${baseParts[1] || '11'}-${String(d).padStart(2, '0')}`;
-      generateHybridMatrix();
-    });
-    datePrevEl.addEventListener('change', generateHybridMatrix);
-  }
+function saveArchive() {
+  localStorage.setItem(
+    ARCHIVE_STORAGE_KEY,
+    JSON.stringify(archiveHistory)
+  );
 }
 
-function bindHourButtons() {
-  const grid = document.getElementById('hoursGrid');
-  const hiddenInput = document.getElementById('hourCoeff');
-  if (!grid) return;
+/* ==========================================================================
+   CHARGEMENT ET DOUBLONS
+   ========================================================================== */
 
-  const activeBtn = grid.querySelector('.hour-btn.active');
-  if (activeBtn && activeBtn.dataset.hour) {
-    selectedHour = formatHourLabel(activeBtn.dataset.hour);
-    if (hiddenInput) hiddenInput.value = selectedHour;
-  }
+function detectDuplicates(entries) {
+  const groups = new Map();
 
-  grid.querySelectorAll('.hour-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      selectedHour = formatHourLabel(btn.dataset.hour);
-      if (hiddenInput) hiddenInput.value = selectedHour;
-      grid.querySelectorAll('.hour-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      generateHybridMatrix();
-    });
-  });
-}
+  entries.forEach((entry, index) => {
+    const key = `${entry.date}_${entry.hour || "ARCHIVE"}`;
 
-/* --------------------------------------------------------------------------
-   4. MOTEUR HYBRIDE JOUR + DATE + HEURE
-   -------------------------------------------------------------------------- */
-function generateHybridMatrix() {
-  const dayCurr = Math.max(1, Number(document.getElementById('dateCurrent')?.value || 19));
-  const dayPrev = Math.max(1, Number(document.getElementById('datePrev')?.value || 18));
-  const targetDate = document.getElementById('targetDate')?.value || `2026-11-${String(Math.min(dayCurr, 30)).padStart(2, '0')}`;
-  const targetDayOfWeek = getDayOfWeek(targetDate);
-  const targetDayName = DAY_NAMES_FR[targetDayOfWeek];
-  const hourNum = parseInt(selectedHour.replace('H', ''), 10) || 10;
-
-  const dateRatio = dayCurr / dayPrev;
-  const formulaValue = dateRatio * (hourNum * 37.5);
-
-  const formulaEl = document.getElementById('formulaOutput');
-  if (formulaEl) {
-    formulaEl.textContent = `Coefficient (${targetDayName} ${selectedHour}) : (${dayCurr}/${dayPrev}) × (${hourNum}×37.5) = ${formulaValue.toFixed(4)}`;
-  }
-
-  const sameDayHourDraws = drawHistory.filter(d => d.dayOfWeek === targetDayOfWeek && d.hour === selectedHour);
-  const sameDayDraws = drawHistory.filter(d => d.dayOfWeek === targetDayOfWeek);
-  const sameHourDraws = drawHistory.filter(d => d.hour === selectedHour);
-  const recentDraws = drawHistory.slice(0, 12);
-
-  const winnerFreq = Array(91).fill(0);
-  drawHistory.forEach(d => d.winners.forEach(n => { winnerFreq[n] += 1; }));
-
-  const coldDecades = [
-    { label: '1-10', min: 1, max: 10 },
-    { label: '11-20', min: 11, max: 20 },
-    { label: '21-30', min: 21, max: 30 },
-    { label: '31-40', min: 31, max: 40 },
-    { label: '41-50', min: 41, max: 50 },
-    { label: '51-60', min: 51, max: 60 },
-    { label: '61-70', min: 61, max: 70 },
-    { label: '71-80', min: 71, max: 80 },
-    { label: '81-90', min: 81, max: 90 }
-  ].map(dec => {
-    let sum = 0;
-    for (let n = dec.min; n <= dec.max; n++) sum += winnerFreq[n];
-    return { ...dec, sum };
-  }).sort((a, b) => a.sum - b.sum);
-
-  const targetedDecades = coldDecades.slice(0, 2);
-  const coldSet = new Set();
-  targetedDecades.forEach(dec => {
-    for (let n = dec.min; n <= dec.max; n++) coldSet.add(n);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ entry, index });
   });
 
-  const candidates = [];
-  for (let n = 1; n <= 90; n++) {
-    let winnerScore = 0;
-    let machineScore = 0;
+  return [...groups.entries()]
+    .filter(([, items]) => items.length > 1)
+    .map(([key, items]) => ({
+      key,
+      count: items.length,
+      items
+    }));
+}
 
-    // 1. Même jour de la semaine + même heure
-    sameDayHourDraws.forEach(d => {
-      if (d.winners.includes(n)) winnerScore += 2.6;
-      if (d.machines.includes(n)) machineScore += 2.4;
-    });
-
-    // 2. Même jour de la semaine
-    sameDayDraws.forEach(d => {
-      if (d.winners.includes(n)) winnerScore += 1.1;
-      if (d.machines.includes(n)) machineScore += 1.0;
-    });
-
-    // 3. Même créneau horaire
-    sameHourDraws.forEach(d => {
-      if (d.winners.includes(n)) winnerScore += 1.5;
-      if (d.machines.includes(n)) machineScore += 1.4;
-    });
-
-    // 4. Récence (12 derniers tirages) + voisins ±1
-    recentDraws.forEach((d, idx) => {
-      const recencyWeight = (12 - idx) / 12;
-      if (d.winners.includes(n)) winnerScore += 1.2 * recencyWeight;
-      if (d.machines.includes(n)) machineScore += 1.1 * recencyWeight;
-
-      const hasNeighborW = d.winners.some(w => Math.abs(w - n) === 1);
-      const hasNeighborM = d.machines.some(m => Math.abs(m - n) === 1);
-      if (hasNeighborW) winnerScore += 0.45 * recencyWeight;
-      if (hasNeighborM) machineScore += 0.45 * recencyWeight;
-    });
-
-    // 5. Dizaines froides
-    if (coldSet.has(n)) {
-      winnerScore += 0.85;
-      machineScore += 0.65;
-    }
-
-    // 6. Modulateur date / heure
-    const dateMod = ((n * dayCurr) % (dayPrev + 5)) / 10;
-    winnerScore += dateMod * Math.min(dateRatio, 1.5);
-    machineScore += ((n + hourNum) % 7) * 0.1;
-
-    candidates.push({ num: n, winnerScore, machineScore });
-  }
-
-  const topWinners = [...candidates]
-    .sort((a, b) => b.winnerScore - a.winnerScore || a.num - b.num)
-    .slice(0, 5)
-    .map(item => item.num);
-
-  const topMachines = [...candidates]
-    .filter(item => !topWinners.includes(item.num))
-    .sort((a, b) => b.machineScore - a.machineScore || a.num - b.num)
-    .slice(0, 5)
-    .map(item => item.num);
-
-  renderBalls('predictedWinners', topWinners, 'ball-winner');
-  renderBalls('predictedMachines', topMachines, 'ball-machine');
-
-  const convergenceIndex = Math.min(
-    95,
-    Math.round(62 + sameDayHourDraws.length * 6 + sameDayDraws.length * 1.2 + sameHourDraws.length * 1.5)
+function loadHistory() {
+  const stored = safeParseJSON(
+    localStorage.getItem(STORAGE_KEY)
   );
 
-  const analysisEl = document.getElementById('statsAnalysis');
-  if (analysisEl) {
-    analysisEl.innerHTML = `
-      <div><strong>Indice de convergence : ${convergenceIndex} %</strong> — ${targetDayName} ${formatFRDate(targetDate)} à ${selectedHour}</div>
-      <div><strong>Contexte :</strong> ${sameDayHourDraws.length} tirage(s) ${targetDayName} ${selectedHour} • ${sameDayDraws.length} tirage(s) ${targetDayName} • ${sameHourDraws.length} tirage(s) ${selectedHour} (sur ${drawHistory.length} tirages).</div>
-      <div><strong>Dizaines froides :</strong> ${targetedDecades[0]?.label || '21-30'} et ${targetedDecades[1]?.label || '61-70'}</div>
-      <div><strong>Classement :</strong> 1<sup>er</sup> au 5<sup>e</sup> rang de score (observation statistique).</div>
-    `;
-  }
+  const source = stored.length ? stored : SEED_HISTORY;
+
+  drawHistory = source
+    .map(normalizeCurrentEntry)
+    .filter(Boolean)
+    .sort(compareEntries);
+
+  saveHistory();
+
+  archiveHistory = safeParseJSON(
+    localStorage.getItem(ARCHIVE_STORAGE_KEY)
+  )
+    .map(normalizeArchiveEntry)
+    .filter(Boolean)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  saveArchive();
+
+  renderHistory();
+  renderDataWarnings();
 }
 
-function renderBalls(containerId, nums, ballClass) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  el.innerHTML = nums
-    .map(n => `<span class="ball ${ballClass}">${String(n).padStart(2, '0')}</span>`)
-    .join('');
-}
+/* ==========================================================================
+   FILTRAGE CHRONOLOGIQUE STRICT
+   ========================================================================== */
 
-/* --------------------------------------------------------------------------
-   5. OCR TESSERACT, SAISIE MANUELLE & HISTORIQUE
-   -------------------------------------------------------------------------- */
-function bindOCRUpload() {
-  const uploadInput = document.getElementById('imageUploadInput');
-  const statusEl = document.getElementById('ocrStatus');
-  if (!uploadInput || typeof Tesseract === 'undefined') return;
+function getDrawsStrictlyBefore(entries, targetDate, targetHour) {
+  const date = normalizeDate(targetDate);
+  const hour = normalizeHour(targetHour);
 
-  uploadInput.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
+  if (!date) return [];
 
-    let addedCount = 0;
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (statusEl) statusEl.textContent = `Analyse OCR (${i + 1}/${files.length}) : ${file.name}...`;
+  const targetKey = `${date}_${hour}`;
 
-      try {
-        const res = await Tesseract.recognize(file, 'fra');
-        const text = (res?.data?.text || '').toUpperCase();
-        const parsed = extractDrawFromOCRText(text, document.getElementById('drawDateInput')?.value || document.getElementById('targetDate')?.value || '2026-11-19');
-
-        if (parsed && parsed.winners.length === 5 && parsed.machines.length === 5) {
-          drawHistory = deduplicateAndSort([parsed, ...drawHistory]);
-          addedCount += 1;
-        } else if (parsed && parsed.winners.length === 5) {
-          const hourField = document.getElementById('drawHourInput');
-          const winField = document.getElementById('winnersInput');
-          const macField = document.getElementById('machinesInput');
-          if (hourField) hourField.value = parsed.hour;
-          if (winField) winField.value = parsed.winners.map(n => String(n).padStart(2, '0')).join(' ');
-          if (macField && parsed.machines.length) macField.value = parsed.machines.map(n => String(n).padStart(2, '0')).join(' ');
-        }
-      } catch (err) {
-        console.error('Erreur OCR :', err);
-      }
-    }
-
-    if (addedCount > 0) {
-      saveHistory();
-      renderHistory();
-      generateHybridMatrix();
-      if (statusEl) statusEl.textContent = `${addedCount} tirage(s) ajouté(s) depuis l'OCR.`;
-    } else if (statusEl) {
-      statusEl.textContent = 'Lecture terminée — vérifie ou complète les champs ci-dessous.';
-    }
-
-    uploadInput.value = '';
+  return entries.filter(entry => {
+    const entryKey = `${entry.date}_${normalizeHour(entry.hour)}`;
+    return entryKey < targetKey;
   });
 }
 
-function extractDrawFromOCRText(text, fallbackDate) {
-  let detectedDate = fallbackDate;
-  const dateMatch = text.match(/(\d{2})[\/\-](\d{2})[\/\-](202\d)/);
-  if (dateMatch) {
-    detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-  }
+/* ==========================================================================
+   STATISTIQUES
+   ========================================================================== */
 
-  let detectedHour = selectedHour;
-  const hourMatch = text.match(/\b(0?[1-9]|1\d|2[0-3])\s*H\b/);
-  if (hourMatch) {
-    detectedHour = formatHourLabel(hourMatch[1]);
-  }
-
-  const allNums = (text.match(/\b([0-8]?\d|90)\b/g) || [])
-    .map(Number)
-    .filter(n => n >= 1 && n <= 90);
-
-  // Évite de confondre la date/année avec les numéros si possible
-  if (allNums.length >= 10) {
-    const winners = allNums.slice(0, 5);
-    const machines = allNums.slice(5, 10);
-    return normalizeEntry({ date: detectedDate, hour: detectedHour, winners, machines });
-  }
-  if (allNums.length >= 5) {
-    return {
-      date: detectedDate,
-      hour: detectedHour,
-      winners: allNums.slice(0, 5),
-      machines: []
-    };
-  }
-  return null;
+function getAllNumbers(draws, field = "winners") {
+  return draws.flatMap(draw => Array.isArray(draw[field]) ? draw[field] : []);
 }
 
-function handleAddDraw(e) {
-  e.preventDefault();
-  const dateVal = document.getElementById('drawDateInput')?.value || document.getElementById('targetDate')?.value || '2026-11-19';
-  const hourVal = document.getElementById('drawHourInput')?.value || selectedHour || '10H';
-  const winnersRaw = document.getElementById('winnersInput')?.value || '';
-  const machinesRaw = document.getElementById('machinesInput')?.value || '';
+function calculateFrequencies(draws, field = "winners") {
+  const frequencies = Array(91).fill(0);
 
-  const parseFive = str =>
-    str
-      .split(/[\s,\-;/]+/)
-      .map(s => parseInt(s.trim(), 10))
-      .filter(n => !Number.isNaN(n) && n >= 1 && n <= 90)
-      .slice(0, 5);
+  draws.forEach(draw => {
+    const values = draw[field] || [];
 
-  const winners = parseFive(winnersRaw);
-  const machines = parseFive(machinesRaw);
+    values.forEach(n => {
+      if (validNumber(n)) frequencies[n]++;
+    });
+  });
 
-  if (winners.length < 5 || machines.length < 5) {
-    alert('Entre bien 5 numéros Gagnants et 5 numéros Machines (entre 01 et 90).');
+  return frequencies;
+}
+
+function calculateGaps(draws, field = "winners") {
+  const result = {};
+
+  for (let n = 1; n <= 90; n++) {
+    let gap = draws.length;
+    let found = false;
+
+    for (let i = draws.length - 1; i >= 0; i--) {
+      if ((draws[i][field] || []).includes(n)) {
+        gap = draws.length - 1 - i;
+        found = true;
+        break;
+      }
+    }
+
+    result[n] = found ? gap : draws.length;
+  }
+
+  return result;
+}
+
+function calculatePairs(draws, field = "winners") {
+  const pairs = {};
+
+  draws.forEach(draw => {
+    const values = [...new Set(draw[field] || [])].sort((a, b) => a - b);
+
+    for (let i = 0; i < values.length; i++) {
+      for (let j = i + 1; j < values.length; j++) {
+        const key = `${values[i]}-${values[j]}`;
+        pairs[key] = (pairs[key] || 0) + 1;
+      }
+    }
+  });
+
+  return Object.entries(pairs)
+    .map(([pair, count]) => ({ pair, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function calculateStats(draws) {
+  const winners = calculateFrequencies(draws, "winners");
+  const machines = calculateFrequencies(draws, "machines");
+  const gaps = calculateGaps(draws, "winners");
+
+  const totalNumbers = getAllNumbers(draws, "winners");
+
+  const sumValues = draws.map(draw =>
+    (draw.winners || []).reduce((a, b) => a + b, 0)
+  );
+
+  const oddCount = totalNumbers.filter(n => n % 2 !== 0).length;
+  const evenCount = totalNumbers.length - oddCount;
+
+  const ranked = Array.from({ length: 90 }, (_, i) => ({
+    number: i + 1,
+    frequency: winners[i + 1],
+    gap: gaps[i + 1]
+  }));
+
+  const hot = [...ranked].sort(
+    (a, b) => b.frequency - a.frequency || a.number - b.number
+  );
+
+  const overdue = [...ranked].sort(
+    (a, b) => b.gap - a.gap || a.number - b.number
+  );
+
+  return {
+    drawsCount: draws.length,
+    winners,
+    machines,
+    gaps,
+    hot,
+    overdue,
+    pairs: calculatePairs(draws),
+    oddCount,
+    evenCount,
+    averageSum: sumValues.length
+      ? sumValues.reduce((a, b) => a + b, 0) / sumValues.length
+      : 0
+  };
+}
+
+/* ==========================================================================
+   ANALYSE ET GÉNÉRATION DES PROPOSITIONS
+   ========================================================================== */
+
+function getDayOfWeek(date) {
+  return new Date(`${date}T12:00:00`).getDay();
+}
+
+function scoreCandidates(draws, targetDate, targetHour) {
+  const stats = calculateStats(draws);
+  const day = getDayOfWeek(targetDate);
+  const hour = normalizeHour(targetHour);
+
+  const sameDay = draws.filter(
+    d => getDayOfWeek(d.date) === day
+  );
+
+  const sameHour = draws.filter(
+    d => normalizeHour(d.hour) === hour
+  );
+
+  const recent = draws.slice(-12);
+
+  const dayFreq = calculateFrequencies(sameDay);
+  const hourFreq = calculateFrequencies(sameHour);
+  const recentFreq = calculateFrequencies(recent);
+
+  const scores = [];
+
+  for (let n = 1; n <= 90; n++) {
+    const frequency = stats.winners[n];
+    const gap = stats.gaps[n];
+
+    const score =
+      frequency * 2.0 +
+      Math.min(gap, 25) * 0.25 +
+      dayFreq[n] * 1.2 +
+      hourFreq[n] * 1.5 +
+      recentFreq[n] * 0.8;
+
+    scores.push({ number: n, score, frequency, gap });
+  }
+
+  return scores.sort(
+    (a, b) => b.score - a.score || a.number - b.number
+  );
+}
+
+function generateHybridMatrix() {
+  const targetDate =
+    document.getElementById("targetDate")?.value ||
+    new Date().toISOString().slice(0, 10);
+
+  const dateCurrent =
+    document.getElementById("dateCurrent")?.value || targetDate;
+
+  const datePrev =
+    document.getElementById("datePrev")?.value || "";
+
+  const hour = selectedHour;
+
+  const pastDraws = getDrawsStrictlyBefore(
+    drawHistory,
+    targetDate,
+    hour
+  );
+
+  if (pastDraws.length < 3) {
+    showMessage(
+      "Historique insuffisant avant cette date pour produire une analyse fiable.",
+      "warning"
+    );
     return;
   }
 
-  const newEntry = normalizeEntry({ date: dateVal, hour: hourVal, winners, machines });
-  drawHistory = deduplicateAndSort([newEntry, ...drawHistory]);
-  saveHistory();
-  renderHistory();
-  generateHybridMatrix();
+  const ranking = scoreCandidates(pastDraws, targetDate, hour);
 
-  const wInput = document.getElementById('winnersInput');
-  const mInput = document.getElementById('machinesInput');
-  if (wInput) wInput.value = '';
-  if (mInput) mInput.value = '';
+  const winners = ranking.slice(0, 5).map(x => x.number);
+
+  const machines = ranking
+    .filter(x => !winners.includes(x.number))
+    .slice(0, 5)
+    .map(x => x.number);
+
+  currentAnalysis = {
+    targetDate,
+    dateCurrent,
+    datePrev,
+    hour,
+    historyUsed: pastDraws.length,
+    winners,
+    machines,
+    ranking
+  };
+
+  displayNumbers("predictedWinners", winners);
+  displayNumbers("predictedMachines", machines);
+
+  displayStats(pastDraws);
+  displayFormula(currentAnalysis);
+
+  return currentAnalysis;
 }
 
+function displayNumbers(id, numbers) {
+  const element = document.getElementById(id);
+  if (!element) return;
+
+  element.textContent = numbers
+    .map(n => String(n).padStart(2, "0"))
+    .join(" - ");
+}
+
+function displayFormula(result) {
+  const element = document.getElementById("formulaOutput");
+  if (!element) return;
+
+  element.textContent =
+    `Analyse basée sur ${result.historyUsed} tirages antérieurs au ` +
+    `${result.targetDate} à ${result.hour}.`;
+}
+
+function displayStats(draws) {
+  const element = document.getElementById("statsAnalysis");
+  if (!element) return;
+
+  const stats = calculateStats(draws);
+
+  const top = stats.hot.slice(0, 10);
+  const late = stats.overdue.slice(0, 10);
+  const pairs = stats.pairs.slice(0, 10);
+
+  element.innerHTML = `
+    <h3>Statistiques descriptives</h3>
+    <p>Tirages analysés : <strong>${stats.drawsCount}</strong></p>
+    <p>Moyenne des sommes : <strong>${stats.averageSum.toFixed(2)}</strong></p>
+    <p>Numéros impairs : ${stats.oddCount}</p>
+    <p>Numéros pairs : ${stats.evenCount}</p>
+
+    <h4>Fréquences les plus élevées</h4>
+    <p>${top.map(x => `${x.number} (${x.frequency})`).join(" · ")}</p>
+
+    <h4>Retards les plus élevés</h4>
+    <p>${late.map(x => `${x.number} (${x.gap})`).join(" · ")}</p>
+
+    <h4>Paires fréquentes</h4>
+    <p>${pairs.map(x => `${x.pair} (${x.count})`).join(" · ")}</p>
+  `;
+}
+
+/* ==========================================================================
+   BACKTESTING DÉTERMINISTE
+   ========================================================================== */
+
+function seededRandom(seed) {
+  let value = seed >>> 0;
+
+  return function () {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function runBacktest(topK = 15, minHistory = 20) {
+  const dataset = [...drawHistory].sort(compareEntries);
+
+  if (dataset.length <= minHistory) {
+    showMessage("Pas assez de tirages pour le backtesting.", "warning");
+    return null;
+  }
+
+  let modelHits = 0;
+  let randomHits = 0;
+  let tests = 0;
+
+  for (let i = minHistory; i < dataset.length; i++) {
+    const target = dataset[i];
+    const past = dataset.slice(0, i);
+
+    const ranking = scoreCandidates(past, target.date, target.hour);
+    const selected = ranking.slice(0, topK).map(x => x.number);
+
+    const actual = new Set(target.winners);
+
+    selected.forEach(n => {
+      if (actual.has(n)) modelHits++;
+    });
+
+    const seed = hashString(`${target.date}_${target.hour}_${i}`);
+    const random = seededRandom(seed);
+
+    const pool = Array.from({ length: 90 }, (_, j) => j + 1);
+
+    for (let j = pool.length - 1; j > 0; j--) {
+      const k = Math.floor(random() * (j + 1));
+      [pool[j], pool[k]] = [pool[k], pool[j]];
+    }
+
+    pool.slice(0, topK).forEach(n => {
+      if (actual.has(n)) randomHits++;
+    });
+
+    tests++;
+  }
+
+  const modelAverage = modelHits / tests;
+  const randomAverage = randomHits / tests;
+  const theoreticalAverage = topK * 5 / 90;
+
+  const result = {
+    tests,
+    topK,
+    modelAverage,
+    randomAverage,
+    theoreticalAverage,
+    modelHits,
+    randomHits
+  };
+
+  renderBacktest(result);
+  return result;
+}
+
+function ensureBacktestUI() {
+  if (document.getElementById("backtestPanel")) return;
+
+  const target =
+    document.getElementById("statsAnalysis") ||
+    document.getElementById("historyList");
+
+  if (!target) return;
+
+  const panel = document.createElement("section");
+  panel.id = "backtestPanel";
+  panel.className = "research-panel";
+
+  panel.innerHTML = `
+    <h3>Backtesting historique</h3>
+    <p>Comparaison du modèle avec une sélection aléatoire reproductible.</p>
+    <button type="button" id="btnRunBacktest">
+      Lancer le backtesting
+    </button>
+    <div id="backtestResults"></div>
+  `;
+
+  target.insertAdjacentElement("afterend", panel);
+
+  document.getElementById("btnRunBacktest")
+    ?.addEventListener("click", () => runBacktest(15, 20));
+}
+
+function renderBacktest(result) {
+  const element = document.getElementById("backtestResults");
+  if (!element) return;
+
+  element.innerHTML = `
+    <p>Tests effectués : <strong>${result.tests}</strong></p>
+    <p>Moyenne du modèle : <strong>${result.modelAverage.toFixed(3)}</strong></p>
+    <p>Moyenne aléatoire : <strong>${result.randomAverage.toFixed(3)}</strong></p>
+    <p>Espérance théorique : <strong>${result.theoreticalAverage.toFixed(3)}</strong></p>
+    <p>Total des correspondances modèle : ${result.modelHits}</p>
+    <p>Total des correspondances aléatoires : ${result.randomHits}</p>
+    <small>Résultat descriptif sur les tirages passés. Aucune garantie de gain futur.</small>
+  `;
+}
+
+/* ==========================================================================
+   GESTION DES ANOMALIES
+   ========================================================================== */
+
+function renderDataWarnings() {
+  const duplicates = detectDuplicates(drawHistory);
+  const archiveDuplicates = detectDuplicates(archiveHistory);
+
+  let element = document.getElementById("dataWarnings");
+
+  if (!element) {
+    element = document.createElement("div");
+    element.id = "dataWarnings";
+
+    const history = document.getElementById("historyList");
+    if (history) history.insertAdjacentElement("beforebegin", element);
+  }
+
+  if (!element) return;
+
+  const repeatedNumbers = drawHistory.filter(draw => {
+    const all = [...draw.winners, ...draw.machines];
+    return new Set(all).size !== all.length;
+  });
+
+  element.innerHTML = `
+    <h3>Contrôle de qualité des données</h3>
+    <p>Doublons date/heure : ${duplicates.length}</p>
+    <p>Doublons dans les archives : ${archiveDuplicates.length}</p>
+    <p>Tirages avec numéros répétés : ${repeatedNumbers.length}</p>
+    <small>Les anomalies sont signalées, jamais corrigées ou supprimées automatiquement.</small>
+  `;
+}
+
+/* ==========================================================================
+   IMPORT / EXPORT JSON
+   ========================================================================== */
+
+function ensureDataTools() {
+  if (document.getElementById("dataTools")) return;
+
+  const container = document.createElement("section");
+  container.id = "dataTools";
+  container.className = "research-panel";
+
+  container.innerHTML = `
+    <h3>Gestion des données</h3>
+
+    <button type="button" id="exportCurrent">
+      Exporter tirages actuels
+    </button>
+
+    <button type="button" id="exportArchive">
+      Exporter archives
+    </button>
+
+    <label for="importCurrentFile">Importer tirages actuels JSON</label>
+    <input type="file" id="importCurrentFile" accept=".json,application/json">
+
+    <label for="importArchiveFile">Importer archives à 6 numéros JSON</label>
+    <input type="file" id="importArchiveFile" accept=".json,application/json">
+  `;
+
+  const history = document.getElementById("historyList");
+
+  if (history) history.insertAdjacentElement("beforebegin", container);
+
+  document.getElementById("exportCurrent")
+    ?.addEventListener("click", () => downloadJSON(
+      drawHistory,
+      "loto590-tirages-actuels.json"
+    ));
+
+  document.getElementById("exportArchive")
+    ?.addEventListener("click", () => downloadJSON(
+      archiveHistory,
+      "loto590-archives-six-numeros.json"
+    ));
+
+  document.getElementById("importCurrentFile")
+    ?.addEventListener("change", event => {
+      importJSONFile(event.target.files[0], "current");
+      event.target.value = "";
+    });
+
+  document.getElementById("importArchiveFile")
+    ?.addEventListener("change", event => {
+      importJSONFile(event.target.files[0], "archive");
+      event.target.value = "";
+    });
+}
+
+function downloadJSON(data, filename) {
+  const blob = new Blob(
+    [JSON.stringify(data, null, 2)],
+    { type: "application/json" }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
+async function importJSONFile(file, type) {
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+
+    if (!Array.isArray(parsed)) {
+      throw new Error("Le fichier doit contenir un tableau JSON.");
+    }
+
+    if (type === "current") {
+      const imported = parsed
+        .map(normalizeCurrentEntry)
+        .filter(Boolean);
+
+      if (!imported.length) {
+        throw new Error("Aucun tirage actuel valide trouvé.");
+      }
+
+      drawHistory = [
+        ...drawHistory,
+        ...imported
+      ].sort(compareEntries);
+
+      saveHistory();
+    } else {
+      const imported = parsed
+        .map(normalizeArchiveEntry)
+        .filter(Boolean);
+
+      if (!imported.length) {
+        throw new Error("Aucune archive valide à six numéros trouvée.");
+      }
+
+      archiveHistory = [
+        ...archiveHistory,
+        ...imported
+      ].sort((a, b) => a.date.localeCompare(b.date));
+
+      saveArchive();
+    }
+
+    renderHistory();
+    renderDataWarnings();
+
+    showMessage(
+      `${type === "current" ? "Tirages" : "Archives"} importés : ${parsed.length} lignes lues.`,
+      "success"
+    );
+  } catch (error) {
+    showMessage(`Import impossible : ${error.message}`, "error");
+  }
+}
+
+/* ==========================================================================
+   AJOUT MANUEL D'UN TIRAGE
+   ========================================================================== */
+
+function addManualDraw(event) {
+  event.preventDefault();
+
+  const date = document.getElementById("drawDateInput")?.value;
+  const hour = document.getElementById("drawHourInput")?.value;
+
+  const winnersText = document.getElementById("winnersInput")?.value || "";
+  const machinesText = document.getElementById("machinesInput")?.value || "";
+
+  const winners = winnersText
+    .split(/[\s,;.-]+/)
+    .filter(Boolean)
+    .map(Number);
+
+  const machines = machinesText
+    .split(/[\s,;.-]+/)
+    .filter(Boolean)
+    .map(Number);
+
+  const entry = normalizeCurrentEntry({
+    date,
+    hour,
+    winners,
+    machines
+  });
+
+  if (!entry) {
+    showMessage(
+      "Vérifie la date et saisis exactement 5 gagnants et 5 machines entre 1 et 90.",
+      "error"
+    );
+    return;
+  }
+
+  const existing = drawHistory.filter(
+    d => d.date === entry.date && d.hour === entry.hour
+  );
+
+  if (existing.length) {
+    const proceed = confirm(
+      "Un tirage existe déjà pour cette date et cette heure. Ajouter quand même ?"
+    );
+
+    if (!proceed) return;
+  }
+
+  drawHistory.push(entry);
+  drawHistory.sort(compareEntries);
+
+  saveHistory();
+  renderHistory();
+  renderDataWarnings();
+
+  event.target.reset();
+
+  showMessage("Tirage ajouté avec succès.", "success");
+}
+
+/* ==========================================================================
+   AFFICHAGE HISTORIQUE
+   ========================================================================== */
+
 function renderHistory() {
-  const list = document.getElementById('historyList');
-  if (!list) return;
+  const element = document.getElementById("historyList");
+  if (!element) return;
 
-  list.innerHTML = drawHistory
-    .map(draw => {
-      const dayName = DAY_NAMES_FR[draw.dayOfWeek] || '';
-      const dateFR = formatFRDate(draw.date);
+  const sorted = [...drawHistory].sort((a, b) =>
+    compareEntries(b, a)
+  );
 
-      const winnerBalls = (draw.winners || [])
-        .map(n => `<span class="ball ball-winner history-ball">${String(n).padStart(2, '0')}</span>`)
-        .join('');
+  if (!sorted.length) {
+    element.innerHTML = "<p>Aucun tirage enregistré.</p>";
+    return;
+  }
 
-      const machineBalls = (draw.machines || [])
-        .map(n => `<span class="ball ball-machine history-ball">${String(n).padStart(2, '0')}</span>`)
-        .join('');
+  element.innerHTML = `
+    <h3>Historique des tirages (${sorted.length})</h3>
+    ${sorted.map(draw => `
+      <div class="history-item">
+        <strong>${draw.date} — ${draw.hour}</strong>
+        <p>Gagnants : ${draw.winners.join(" - ")}</p>
+        <p>Machines : ${draw.machines.join(" - ")}</p>
+      </div>
+    `).join("")}
+  `;
+}
 
-      return `
-        <div class="history-item">
-          <div class="history-badge">
-            <div><strong>${draw.hour}</strong></div>
-            <div class="history-date">${dayName} ${dateFR}</div>
-          </div>
-          <div class="history-nums">
-            <div class="history-row">
-              <strong>Gagnants :</strong>
-              <div class="history-balls">${winnerBalls}</div>
-            </div>
-            <div class="history-row">
-              <strong>Machines :</strong>
-              <div class="history-balls">${machineBalls}</div>
-            </div>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
+/* ==========================================================================
+   MESSAGES
+   ========================================================================== */
+
+function showMessage(message, type = "info") {
+  let box = document.getElementById("messageBox");
+
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "messageBox";
+    document.body.prepend(box);
+  }
+
+  box.textContent = message;
+  box.dataset.type = type;
+}
+
+/* ==========================================================================
+   SÉLECTION DES HEURES
+   ========================================================================== */
+
+function bindHourButtons() {
+  const grid = document.getElementById("hoursGrid");
+  if (!grid) return;
+
+  grid.addEventListener("click", event => {
+    const button = event.target.closest("button");
+    if (!button) return;
+
+    const text = button.dataset.hour || button.textContent;
+    const match = text.match(/\d{1,2}\s*H/i);
+
+    if (!match) return;
+
+    selectedHour = normalizeHour(match[0]);
+
+    grid.querySelectorAll("button").forEach(btn => {
+      btn.classList.toggle("active", btn === button);
+      btn.setAttribute(
+        "aria-pressed",
+        btn === button ? "true" : "false"
+      );
+    });
+
+    const coeff = document.getElementById("hourCoeff");
+    if (coeff) coeff.textContent = selectedHour;
+  });
+}
+
+/* ==========================================================================
+   SYNCHRONISATION DES DATES
+   ========================================================================== */
+
+function bindDateSync() {
+  const target = document.getElementById("targetDate");
+  const current = document.getElementById("dateCurrent");
+
+  if (!target || !current) return;
+
+  target.addEventListener("change", () => {
+    current.value = target.value;
+  });
+}
+
+/* ==========================================================================
+   OCR — RECONNAISSANCE AVEC VALIDATION
+   ========================================================================== */
+
+function bindOCRUpload() {
+  const input = document.getElementById("imageUploadInput");
+  if (!input) return;
+
+  input.addEventListener("change", async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const status = document.getElementById("ocrStatus");
+
+    try {
+      if (typeof Tesseract === "undefined") {
+        throw new Error("La bibliothèque OCR Tesseract n'est pas chargée.");
+      }
+
+      if (status) status.textContent = "Lecture de l'image en cours...";
+
+      const result = await Tesseract.recognize(file, "fra");
+      const text = result.data.text || "";
+
+      const numbers = (text.match(/\b(?:[1-9]|[1-8][0-9]|90)\b/g) || [])
+        .map(Number);
+
+      const dateMatch = text.match(/\b\d{4}-\d{2}-\d{2}\b/);
+      const hourMatch = text.match(/\b(?:07|10|13|16|19|21)\s*H\b/i);
+
+      if (dateMatch) {
+        const dateInput = document.getElementById("drawDateInput");
+        if (dateInput) dateInput.value = dateMatch[0];
+      }
+
+      if (hourMatch) {
+        const hourInput = document.getElementById("drawHourInput");
+        if (hourInput) hourInput.value = normalizeHour(hourMatch[0]);
+      }
+
+      const winnersInput = document.getElementById("winnersInput");
+      const machinesInput = document.getElementById("machinesInput");
+
+      if (numbers.length >= 10) {
+        if (winnersInput) winnersInput.value = numbers.slice(0, 5).join(" ");
+        if (machinesInput) machinesInput.value = numbers.slice(5, 10).join(" ");
+      }
+
+      if (status) {
+        status.textContent =
+          "Lecture terminée. Vérifie les numéros avant de valider le tirage.";
+      }
+    } catch (error) {
+      if (status) status.textContent = error.message;
+      showMessage(error.message, "error");
+    } finally {
+      input.value = "";
+    }
+  });
+}
+
+/* ==========================================================================
+   RÉINITIALISATION
+   ========================================================================== */
+
+function bindReset() {
+  const button = document.getElementById("btnReset");
+  if (!button) return;
+
+  button.addEventListener("click", () => {
+    const confirmed = confirm(
+      "Réinitialiser les données enregistrées sur cet appareil ?"
+    );
+
+    if (!confirmed) return;
+
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(ARCHIVE_STORAGE_KEY);
+
+    drawHistory = SEED_HISTORY
+      .map(normalizeCurrentEntry)
+      .filter(Boolean)
+      .sort(compareEntries);
+
+    archiveHistory = [];
+
+    saveHistory();
+    saveArchive();
+
+    renderHistory();
+    renderDataWarnings();
+
+    showMessage("Données locales réinitialisées.", "success");
+  });
+}
+
+/* ==========================================================================
+   INITIALISATION
+   ========================================================================== */
+
+function initializeApp() {
+  loadHistory();
+
+  bindDateSync();
+  bindHourButtons();
+  bindOCRUpload();
+  bindReset();
+
+  ensureBacktestUI();
+  ensureDataTools();
+
+  const calculateButton = document.getElementById("btnCalculate");
+
+  calculateButton?.addEventListener("click", event => {
+    event.preventDefault();
+    generateHybridMatrix();
+  });
+
+  const form = document.getElementById("addDrawForm");
+
+  form?.addEventListener("submit", addManualDraw);
+
+  const targetDate = document.getElementById("targetDate");
+
+  if (targetDate && !targetDate.value) {
+    targetDate.value = new Date().toISOString().slice(0, 10);
+  }
+
+  const currentDate = document.getElementById("dateCurrent");
+
+  if (currentDate && !currentDate.value) {
+    currentDate.value = targetDate?.value || "";
+  }
+
+  const hourElement = document.getElementById("hourCoeff");
+
+  if (hourElement) hourElement.textContent = selectedHour;
+
+  renderHistory();
+  renderDataWarnings();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeApp);
+} else {
+  initializeApp();
 }
