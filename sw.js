@@ -1,10 +1,10 @@
 /**
  * LOTO 5/90 HYBRID ANALYZER
- * SERVICE WORKER v13.0
+ * SERVICE WORKER v14.2
  * Auteur : Dev.Assamoi
  */
 
-const CACHE_NAME = "loto590-hybrid-v13.0";
+const CACHE_NAME = "loto590-hybrid-v14.2";
 
 const ASSETS = [
     "./",
