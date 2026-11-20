@@ -1,132 +1,244 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Loto 5/90 Hybrid Analyzer</title>
+
+    <meta name="description" content="Analyse hybride mathématique et statistique pour tirages Loto 5/90.">
     <meta name="theme-color" content="#0f172a">
-    <title>Loto 5/90 Analyzer Pro</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="manifest.json">
+
+    <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-512.png">
-    <!-- Intégration de Tesseract.js pour la lecture OCR des images -->
+    <link rel="stylesheet" href="./style.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
+
 <body>
-    <header>
-        <h1>Loto 5/90 Hybrid Analyzer</h1>
-        <p class="subtitle">Formule Mathématique &amp; Équilibre Statistique</p>
-    </header>
 
-    <main>
-        <!-- Section 1 : Paramètres de calcul -->
-        <section class="card">
-            <h2>1. Paramètres du Prochain Tirage</h2>
-            <div class="input-group">
-                <label for="targetDate">Date ciblée (Jour de la semaine &amp; Date)</label>
-                <input type="date" id="targetDate" value="2026-11-19">
+<header class="app-header">
+    <div class="header-content">
+        <div class="logo">🎯</div>
+        <div>
+            <h1>Loto 5/90</h1>
+            <p>HYBRID ANALYZER</p>
+        </div>
+    </div>
+    <div class="version">RESEARCH LAB v13.0</div>
+</header>
+
+<main>
+
+    <!-- PARAMÈTRES D'ANALYSE -->
+    <section class="card">
+        <h2>📅 Paramètres d'analyse</h2>
+
+        <div class="form-group">
+            <label for="targetDate">Date du tirage à analyser</label>
+            <input type="date" id="targetDate" value="2026-11-19">
+        </div>
+
+        <div class="date-grid">
+            <div class="form-group">
+                <label for="dateCurrent">Jour actuel</label>
+                <input type="number" id="dateCurrent" min="1" max="31" value="19">
             </div>
 
-            <div class="grid-dates">
-                <div class="input-group">
-                    <label for="dateCurrent">Date du jour (JJ)</label>
-                    <input type="number" id="dateCurrent" min="1" max="31" value="19">
-                </div>
-                <div class="input-group">
-                    <label for="datePrev">Date veille (JJ)</label>
-                    <input type="number" id="datePrev" min="1" max="31" value="18">
-                </div>
+            <div class="form-group">
+                <label for="datePrev">Jour précédent</label>
+                <input type="number" id="datePrev" min="1" max="31" value="18">
+            </div>
+        </div>
+    </section>
+
+    <!-- HORAIRES -->
+    <section class="card">
+        <h2>🕒 Sélection de l'heure</h2>
+        <p class="section-description">
+            Choisis l'heure du tirage à analyser.
+        </p>
+
+        <div class="hours-grid" id="hoursGrid">
+            <button type="button" class="hour-btn" data-hour="07H">07H</button>
+            <button type="button" class="hour-btn" data-hour="08H">08H</button>
+            <button type="button" class="hour-btn active" data-hour="10H">10H</button>
+            <button type="button" class="hour-btn" data-hour="13H">13H</button>
+            <button type="button" class="hour-btn" data-hour="16H">16H</button>
+            <button type="button" class="hour-btn" data-hour="18H">18H</button>
+            <button type="button" class="hour-btn" data-hour="21H">21H</button>
+            <button type="button" class="hour-btn" data-hour="22H">22H</button>
+            <button type="button" class="hour-btn" data-hour="23H">23H</button>
+            <button type="button" class="hour-btn" data-hour="01H">01H</button>
+            <button type="button" class="hour-btn" data-hour="03H">03H</button>
+            <button type="button" class="hour-btn" data-hour="20H">20H</button>
+        </div>
+
+        <input type="hidden" id="hourCoeff" value="10H">
+
+        <button type="button" id="btnCalculate" class="btn-primary">
+            🔬 LANCER L'ANALYSE
+        </button>
+    </section>
+
+    <!-- FORMULE -->
+    <section class="card">
+        <h2>🧮 Formule statistique</h2>
+        <div id="formulaOutput" class="formula-output">
+            Sélectionne une date et une heure, puis lance l'analyse.
+        </div>
+    </section>
+
+    <!-- NUMÉROS GAGNANTS -->
+    <section class="card">
+        <h2>🟠 Numéros gagnants analysés</h2>
+        <p class="section-description">
+            Sélection statistique des cinq numéros.
+        </p>
+
+        <div id="predictedWinners" class="balls-container">
+            <p class="empty-message">Les résultats apparaîtront ici.</p>
+        </div>
+    </section>
+
+    <!-- NUMÉROS MACHINES -->
+    <section class="card">
+        <h2>🟢 Numéros machines</h2>
+        <p class="section-description">
+            Deuxième série de cinq numéros.
+        </p>
+
+        <div id="predictedMachines" class="balls-container">
+            <p class="empty-message">Les numéros machines apparaîtront ici.</p>
+        </div>
+    </section>
+
+    <!-- STATISTIQUES -->
+    <section class="card">
+        <h2>📊 Analyse statistique</h2>
+
+        <div id="statsAnalysis">
+            <p class="empty-message">
+                Les statistiques seront affichées après l'analyse.
+            </p>
+        </div>
+    </section>
+
+    <!-- IMPORTATION DES IMAGES -->
+    <section class="card">
+        <h2>📷 Importer des résultats</h2>
+
+        <p class="section-description">
+            Ajoute des captures d'écran de résultats pour tenter d'extraire automatiquement les numéros.
+        </p>
+
+        <div class="form-group">
+            <label for="imageUploadInput">Sélectionner une ou plusieurs images</label>
+
+            <input
+                type="file"
+                id="imageUploadInput"
+                accept="image/*"
+                multiple
+            >
+        </div>
+
+        <div id="ocrStatus" class="ocr-status">
+            En attente d'une image.
+        </div>
+    </section>
+
+    <!-- AJOUT MANUEL D'UN TIRAGE -->
+    <section class="card">
+        <h2>➕ Ajouter un tirage manuellement</h2>
+
+        <form id="addDrawForm">
+
+            <div class="form-group">
+                <label for="drawDateInput">Date du tirage</label>
+                <input
+                    type="date"
+                    id="drawDateInput"
+                    required
+                >
             </div>
 
-            <div class="input-group">
-                <label>Sélectionne l'Heure du Tirage :</label>
-                <div class="hours-grid" id="hoursGrid">
-                    <button type="button" class="hour-btn" data-hour="07H">07H</button>
-                    <button type="button" class="hour-btn" data-hour="08H">08H</button>
-                    <button type="button" class="hour-btn active" data-hour="10H">10H</button>
-                    <button type="button" class="hour-btn" data-hour="13H">13H</button>
-                    <button type="button" class="hour-btn" data-hour="16H">16H</button>
-                    <button type="button" class="hour-btn" data-hour="18H">18H</button>
-                    <button type="button" class="hour-btn" data-hour="21H">21H</button>
-                    <button type="button" class="hour-btn" data-hour="22H">22H</button>
-                    <button type="button" class="hour-btn" data-hour="23H">23H</button>
-                    <button type="button" class="hour-btn" data-hour="01H">01H</button>
-                    <button type="button" class="hour-btn" data-hour="03H">03H</button>
-                    <button type="button" class="hour-btn" data-hour="20H">20H</button>
-                </div>
-                <input type="hidden" id="hourCoeff" value="10H">
+            <div class="form-group">
+                <label for="drawHourInput">Heure du tirage</label>
+
+                <select id="drawHourInput" required>
+                    <option value="07H">07H</option>
+                    <option value="08H">08H</option>
+                    <option value="10H">10H</option>
+                    <option value="13H">13H</option>
+                    <option value="16H">16H</option>
+                    <option value="18H">18H</option>
+                    <option value="21H">21H</option>
+                    <option value="22H">22H</option>
+                    <option value="23H">23H</option>
+                    <option value="01H">01H</option>
+                    <option value="03H">03H</option>
+                    <option value="20H">20H</option>
+                </select>
             </div>
 
-            <button type="button" id="btnCalculate" class="btn-primary">Générer la Matrice Hybride</button>
-        </section>
-
-        <!-- Section 2 : Résultats & Prédictions -->
-        <section class="card results-card" id="resultsSection">
-            <h2>2. Zones Probables &amp; Paires Estimées</h2>
-            <div class="formula-display" id="formulaOutput">Coefficient : --</div>
-
-            <div class="result-block">
-                <h3>Sélection Principale (Gagnants ciblés)</h3>
-                <div class="balls-container" id="predictedWinners"></div>
+            <div class="form-group">
+                <label for="winnersInput">5 numéros gagnants</label>
+                <input
+                    type="text"
+                    id="winnersInput"
+                    placeholder="Exemple : 05, 12, 24, 38, 49"
+                    required
+                >
             </div>
 
-            <div class="result-block">
-                <h3>Pivots &amp; Machines Associées</h3>
-                <div class="balls-container" id="predictedMachines"></div>
+            <div class="form-group">
+                <label for="machinesInput">5 numéros machines</label>
+                <input
+                    type="text"
+                    id="machinesInput"
+                    placeholder="Exemple : 03, 17, 29, 41, 50"
+                    required
+                >
             </div>
 
-            <div class="stats-summary" id="statsAnalysis"></div>
-        </section>
+            <button type="submit" class="btn-primary">
+                💾 ENREGISTRER LE TIRAGE
+            </button>
 
-        <!-- Section 3 : Ajout rapide d'un tirage officiel ou par image -->
-        <section class="card">
-            <h2>3. Enregistrer un Résultat Officiel</h2>
-            <p class="hint">Saisis les numéros ou scanne une/plusieurs captures d'écran :</p>
+        </form>
+    </section>
 
-            <!-- Bouton d'importation multiple d'images pour l'OCR -->
-            <div class="input-group" style="margin-bottom: 15px;">
-                <label for="imageUploadInput" class="btn-secondary" style="display: block; text-align: center; cursor: pointer; background: #0d9488; color: white; padding: 10px; border-radius: 8px;">
-                    📸 Importer des captures de résultats (OCR)
-                </label>
-                <input type="file" id="imageUploadInput" accept="image/*" multiple style="display: none;">
-                <div id="ocrStatus" style="font-size: 0.85rem; color: #64748b; margin-top: 5px; text-align: center;"></div>
-            </div>
+    <!-- HISTORIQUE -->
+    <section class="card">
+        <h2>📚 Historique des tirages</h2>
 
-            <form id="addDrawForm">
-                <div class="input-group">
-                    <label for="drawDateInput">Date du tirage</label>
-                    <input type="date" id="drawDateInput" value="2026-11-19">
-                </div>
-                <div class="input-group">
-                    <label for="drawHourInput">Créneau (ex: 07H, 08H, 10H, 16H...)</label>
-                    <input type="text" id="drawHourInput" placeholder="Ex: 16H">
-                </div>
-                <div class="input-group">
-                    <label for="winnersInput">5 Gagnants</label>
-                    <input type="text" id="winnersInput" placeholder="Ex: 03 20 13 50 25">
-                </div>
-                <div class="input-group">
-                    <label for="machinesInput">5 Machines</label>
-                    <input type="text" id="machinesInput" placeholder="Ex: 30 86 51 46 26">
-                </div>
-                <button type="submit" id="btnAddDraw" class="btn-secondary">Ajouter à l'historique</button>
-            </form>
-        </section>
+        <div class="history-actions">
+            <button type="button" id="btnReset" class="btn-secondary">
+                Réinitialiser l'affichage
+            </button>
+        </div>
 
-        <!-- Section 4 : Historique récent -->
-        <section class="card">
-            <div class="history-header">
-                <h2>4. Historique Récent</h2>
-                <button type="button" id="btnReset" class="btn-danger-small">Réinitialiser</button>
-            </div>
-            <div id="historyList" class="history-list"></div>
-        </section>
-    </main>
+        <div id="historyList">
+            <p class="empty-message">Chargement de l'historique...</p>
+        </div>
+    </section>
 
-    <footer>
-        <p>Outil d'aide à l'analyse statistique • <strong>Dev.Assamoi</strong></p>
-    </footer>
+</main>
 
-    <script src="app.js"></script>
+<!-- PIED DE PAGE -->
+<footer class="app-footer">
+    <p>LOTO 5/90 HYBRID ANALYZER</p>
+    <p>Laboratoire statistique — Dev.Assamoi</p>
+    <small>
+        Les analyses sont expérimentales et ne garantissent aucun résultat de tirage.
+    </small>
+</footer>
+
+<script src="./app.js"></script>
+
 </body>
 </html>
