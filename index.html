@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -14,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-512.png">
     <link rel="stylesheet" href="./style.css">
-    
+
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 
@@ -63,18 +62,19 @@
         </p>
 
         <div class="hours-grid" id="hoursGrid">
+            <button type="button" class="hour-btn" data-hour="01H">01H</button>
+            <button type="button" class="hour-btn" data-hour="03H">03H</button>
             <button type="button" class="hour-btn" data-hour="07H">07H</button>
             <button type="button" class="hour-btn" data-hour="08H">08H</button>
             <button type="button" class="hour-btn active" data-hour="10H">10H</button>
             <button type="button" class="hour-btn" data-hour="13H">13H</button>
             <button type="button" class="hour-btn" data-hour="16H">16H</button>
             <button type="button" class="hour-btn" data-hour="18H">18H</button>
+            <button type="button" class="hour-btn" data-hour="19H">19H</button>
+            <button type="button" class="hour-btn" data-hour="20H">20H</button>
             <button type="button" class="hour-btn" data-hour="21H">21H</button>
             <button type="button" class="hour-btn" data-hour="22H">22H</button>
             <button type="button" class="hour-btn" data-hour="23H">23H</button>
-            <button type="button" class="hour-btn" data-hour="01H">01H</button>
-            <button type="button" class="hour-btn" data-hour="03H">03H</button>
-            <button type="button" class="hour-btn" data-hour="20H">20H</button>
         </div>
 
         <input type="hidden" id="hourCoeff" value="10H">
@@ -170,18 +170,19 @@
                 <label for="drawHourInput">Heure du tirage</label>
 
                 <select id="drawHourInput" required>
+                    <option value="01H">01H</option>
+                    <option value="03H">03H</option>
                     <option value="07H">07H</option>
                     <option value="08H">08H</option>
                     <option value="10H">10H</option>
                     <option value="13H">13H</option>
                     <option value="16H">16H</option>
                     <option value="18H">18H</option>
+                    <option value="19H">19H</option>
+                    <option value="20H">20H</option>
                     <option value="21H">21H</option>
                     <option value="22H">22H</option>
                     <option value="23H">23H</option>
-                    <option value="01H">01H</option>
-                    <option value="03H">03H</option>
-                    <option value="20H">20H</option>
                 </select>
             </div>
 
@@ -239,6 +240,15 @@
 </footer>
 
 <script src="./app.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker
+            .register("./sw.js")
+            .catch(err => console.error("Erreur d'enregistrement du Service Worker :", err));
+    });
+}
+</script>
 
 </body>
 </html>
