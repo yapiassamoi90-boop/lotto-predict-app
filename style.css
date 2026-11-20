@@ -117,7 +117,6 @@ select {
     color: var(--text-main);
 }
 
-/* Notifications (#messageBox) */
 .message-box {
     padding: 10px 14px;
     border-radius: 8px;
@@ -145,7 +144,6 @@ select {
     border-color: #fecaca;
 }
 
-/* Grille tactile des heures */
 .hours-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -253,6 +251,15 @@ button:active {
     background: linear-gradient(135deg, #14b8a6, #0f766e);
 }
 
+.stats-summary {
+    background: #fffbeb;
+    border-left: 4px solid #f59e0b;
+    padding: 10px;
+    font-size: 0.85rem;
+    color: #78350f;
+    border-radius: 4px;
+}
+
 .empty-message,
 .ocr-status {
     font-size: 0.85rem;
@@ -260,7 +267,6 @@ button:active {
     margin-top: 6px;
 }
 
-/* Classements, stats générales et tableaux dynamiques */
 .ranking-row {
     display: flex;
     flex-wrap: wrap;
@@ -323,7 +329,6 @@ th {
     font-weight: 700;
 }
 
-/* Historique */
 .history-actions {
     margin-bottom: 10px;
 }
