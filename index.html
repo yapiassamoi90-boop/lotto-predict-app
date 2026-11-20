@@ -27,7 +27,7 @@
             <p>HYBRID ANALYZER</p>
         </div>
     </div>
-    <div class="version" id="appVersion">RESEARCH LAB v14.2</div>
+    <div class="version" id="appVersion">RESEARCH LAB v14.3</div>
 </header>
 
 <main>
@@ -40,18 +40,18 @@
 
         <div class="form-group">
             <label for="targetDate">Date du tirage à analyser</label>
-            <input type="date" id="targetDate" value="2026-11-19">
+            <input type="date" id="targetDate" value="2026-11-20">
         </div>
 
         <div class="date-grid">
             <div class="form-group">
                 <label for="dateCurrent">Jour actuel</label>
-                <input type="number" id="dateCurrent" min="1" max="31" value="19">
+                <input type="number" id="dateCurrent" min="1" max="31" value="20">
             </div>
 
             <div class="form-group">
                 <label for="datePrev">Jour précédent</label>
-                <input type="number" id="datePrev" min="1" max="31" value="18">
+                <input type="number" id="datePrev" min="1" max="31" value="19">
             </div>
         </div>
     </section>
@@ -126,6 +126,17 @@
             <p class="empty-message">
                 Les statistiques seront affichées après l'analyse.
             </p>
+        </div>
+    </section>
+
+    <!-- TEST PISTES MÉTHODE PDF -->
+    <section class="card">
+        <h2>📘 Test Pistes Méthode PDF (Code 25 / Répétés)</h2>
+        <p class="section-description">
+            Règles expérimentales testées : codes 50, 63, 75 + jour − 25, 3 premiers gagnants précédents + 25 (avec −90 si &gt; 90) et répétition (+1)[span_1](start_span)[span_1](end_span).
+        </p>
+        <div id="pdfMethodSuggestions" class="stats-summary">
+            <p class="empty-message">Les pistes de la méthode apparaîtront ici.</p>
         </div>
     </section>
 
