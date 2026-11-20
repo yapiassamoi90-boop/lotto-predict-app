@@ -1,4 +1,3 @@
-
 /* ==========================================================================
    LOTO 5/90 RESEARCH LAB — app.js
    VERSION 13.0 — RESEARCH ENGINE
@@ -25,7 +24,8 @@ const DAY_NAMES_FR = [
 ];
 
 const HOURS = [
-  "07H", "10H", "13H", "16H", "19H", "21H"
+  "01H", "03H", "07H", "08H", "10H", "13H",
+  "16H", "18H", "19H", "20H", "21H", "22H", "23H"
 ];
 
 /*
@@ -38,8 +38,10 @@ const SEED_HISTORY = [];
 
 let drawHistory = [];
 let archiveHistory = [];
-let selectedHour = "07H";
+let selectedHour = "10H";
 let currentAnalysis = null;
+let historyDateFilter = "";
+let historyHourFilter = "ALL";
 
 /* ==========================================================================
    OUTILS DE BASE
@@ -65,11 +67,25 @@ function normalizeDate(date) {
 function normalizeHour(hour) {
   if (!hour) return "00H";
 
-  return String(hour)
+  const cleaned = String(hour)
     .trim()
     .toUpperCase()
-    .replace(/\s/g, "")
-    .replace(/^(\d{1,2})$/, "$1H");
+    .replace(/\s+/g, "");
+
+  const match = cleaned.match(/^(\d{1,2})H?$/);
+  if (!match) return cleaned;
+
+  const paddedHour = match[1].padStart(2, "0");
+  return `${paddedHour}H`;
+}
+
+function getHourOrder(hour) {
+  const normalized = normalizeHour(hour);
+  const index = HOURS.indexOf(normalized);
+  if (index !== -1) return index;
+
+  const num = parseInt(normalized, 10);
+  return Number.isNaN(num) ? 999 : num;
 }
 
 function normalizeCurrentEntry(raw) {
@@ -123,7 +139,7 @@ function compareEntries(a, b) {
   const dateCompare = a.date.localeCompare(b.date);
   if (dateCompare !== 0) return dateCompare;
 
-  return String(a.hour || "").localeCompare(String(b.hour || ""));
+  return getHourOrder(a.hour) - getHourOrder(b.hour);
 }
 
 function safeParseJSON(value, fallback = []) {
@@ -206,11 +222,17 @@ function getDrawsStrictlyBefore(entries, targetDate, targetHour) {
 
   if (!date) return [];
 
-  const targetKey = `${date}_${hour}`;
+  const targetOrder = getHourOrder(hour);
 
   return entries.filter(entry => {
-    const entryKey = `${entry.date}_${normalizeHour(entry.hour)}`;
-    return entryKey < targetKey;
+    const entryDate = normalizeDate(entry.date);
+    if (!entryDate) return false;
+
+    if (entryDate !== date) {
+      return entryDate < date;
+    }
+
+    return getHourOrder(entry.hour) < targetOrder;
   });
 }
 
@@ -415,8 +437,8 @@ function generateHybridMatrix() {
     ranking
   };
 
-  displayNumbers("predictedWinners", winners);
-  displayNumbers("predictedMachines", machines);
+  displayNumbers("predictedWinners", winners, "winner");
+  displayNumbers("predictedMachines", machines, "machine");
 
   displayStats(pastDraws);
   displayFormula(currentAnalysis);
@@ -424,13 +446,25 @@ function generateHybridMatrix() {
   return currentAnalysis;
 }
 
-function displayNumbers(id, numbers) {
+function displayNumbers(id, numbers, role = "winner") {
   const element = document.getElementById(id);
   if (!element) return;
 
-  element.textContent = numbers
-    .map(n => String(n).padStart(2, "0"))
-    .join(" - ");
+  element.innerHTML = "";
+
+  if (!Array.isArray(numbers) || !numbers.length) {
+    element.innerHTML = `<p class="empty-message">Aucun numéro disponible.</p>`;
+    return;
+  }
+
+  const variantClass = role === "machine" ? "ball-machine" : "ball-winner";
+
+  numbers.forEach(n => {
+    const ball = document.createElement("span");
+    ball.className = `ball ${variantClass}`;
+    ball.textContent = String(n).padStart(2, "0");
+    element.appendChild(ball);
+  });
 }
 
 function displayFormula(result) {
@@ -761,7 +795,7 @@ async function importJSONFile(file, type) {
 }
 
 /* ==========================================================================
-   AJOUT MANUEL D'UN TIRAGE
+   AJOUT MANUEL ET SUPPRESSION D'UN TIRAGE
    ========================================================================== */
 
 function addManualDraw(event) {
@@ -773,14 +807,10 @@ function addManualDraw(event) {
   const winnersText = document.getElementById("winnersInput")?.value || "";
   const machinesText = document.getElementById("machinesInput")?.value || "";
 
-  const winners = winnersText
-    .split(/[\s,;.-]+/)
-    .filter(Boolean)
+  const winners = (winnersText.match(/\b\d{1,2}\b/g) || [])
     .map(Number);
 
-  const machines = machinesText
-    .split(/[\s,;.-]+/)
-    .filter(Boolean)
+  const machines = (machinesText.match(/\b\d{1,2}\b/g) || [])
     .map(Number);
 
   const entry = normalizeCurrentEntry({
@@ -822,33 +852,185 @@ function addManualDraw(event) {
   showMessage("Tirage ajouté avec succès.", "success");
 }
 
+function deleteDraw(date, hour) {
+  const confirmed = confirm(
+    `Supprimer le tirage du ${date} à ${hour} ?`
+  );
+
+  if (!confirmed) return;
+
+  const index = drawHistory.findIndex(
+    item => item.date === date && item.hour === hour
+  );
+
+  if (index === -1) return;
+
+  drawHistory.splice(index, 1);
+
+  saveHistory();
+  renderHistory();
+  renderDataWarnings();
+
+  showMessage(`Tirage du ${date} (${hour}) supprimé.`, "success");
+}
+
 /* ==========================================================================
-   AFFICHAGE HISTORIQUE
+   AFFICHAGE HISTORIQUE, FILTRES ET MINI-BOULES
    ========================================================================== */
+
+function renderHistoryBalls(numbers, role = "winner") {
+  const variantClass = role === "machine" ? "ball-machine" : "ball-winner";
+
+  return (numbers || [])
+    .map(n => {
+      const formatted = String(n).padStart(2, "0");
+      return `<span class="ball history-ball ${variantClass}">${formatted}</span>`;
+    })
+    .join("");
+}
+
+function ensureHistoryFiltersUI(container) {
+  if (document.getElementById("historyFilters")) return;
+
+  const filtersDiv = document.createElement("div");
+  filtersDiv.id = "historyFilters";
+  filtersDiv.className = "history-filters";
+
+  const hourOptions = HOURS.map(
+    h => `<option value="${h}">${h}</option>`
+  ).join("");
+
+  filtersDiv.innerHTML = `
+    <div class="input-group">
+      <label for="filterHistoryDate">Filtrer par date</label>
+      <input type="date" id="filterHistoryDate">
+    </div>
+
+    <div class="input-group">
+      <label for="filterHistoryHour">Filtrer par heure</label>
+      <select id="filterHistoryHour">
+        <option value="ALL">Toutes les heures</option>
+        ${hourOptions}
+      </select>
+    </div>
+
+    <button type="button" id="btnClearHistoryFilters" class="btn-secondary">
+      Réinitialiser les filtres
+    </button>
+  `;
+
+  container.prepend(filtersDiv);
+
+  document.getElementById("filterHistoryDate")?.addEventListener("input", event => {
+    historyDateFilter = event.target.value || "";
+    renderHistory();
+  });
+
+  document.getElementById("filterHistoryHour")?.addEventListener("change", event => {
+    historyHourFilter = event.target.value || "ALL";
+    renderHistory();
+  });
+
+  document.getElementById("btnClearHistoryFilters")?.addEventListener("click", () => {
+    historyDateFilter = "";
+    historyHourFilter = "ALL";
+
+    const dateInput = document.getElementById("filterHistoryDate");
+    const hourSelect = document.getElementById("filterHistoryHour");
+
+    if (dateInput) dateInput.value = "";
+    if (hourSelect) hourSelect.value = "ALL";
+
+    renderHistory();
+  });
+}
+
+function getFilteredHistory() {
+  return [...drawHistory]
+    .filter(draw => {
+      const matchesDate = !historyDateFilter || draw.date === historyDateFilter;
+      const matchesHour =
+        historyHourFilter === "ALL" ||
+        normalizeHour(draw.hour) === normalizeHour(historyHourFilter);
+
+      return matchesDate && matchesHour;
+    })
+    .sort((a, b) => compareEntries(b, a));
+}
 
 function renderHistory() {
   const element = document.getElementById("historyList");
   if (!element) return;
 
-  const sorted = [...drawHistory].sort((a, b) =>
-    compareEntries(b, a)
-  );
+  ensureHistoryFiltersUI(element);
 
-  if (!sorted.length) {
-    element.innerHTML = "<p>Aucun tirage enregistré.</p>";
+  let listContainer = document.getElementById("historyItemsContainer");
+  if (!listContainer) {
+    listContainer = document.createElement("div");
+    listContainer.id = "historyItemsContainer";
+    element.appendChild(listContainer);
+  }
+
+  const filtered = getFilteredHistory();
+
+  if (!drawHistory.length) {
+    listContainer.innerHTML = `<p class="empty-message">Aucun tirage enregistré.</p>`;
     return;
   }
 
-  element.innerHTML = `
-    <h3>Historique des tirages (${sorted.length})</h3>
-    ${sorted.map(draw => `
+  if (!filtered.length) {
+    listContainer.innerHTML = `<p class="empty-message">Aucun tirage ne correspond aux filtres sélectionnés.</p>`;
+    return;
+  }
+
+  listContainer.innerHTML = `
+    <h3>Historique des tirages (${filtered.length} / ${drawHistory.length})</h3>
+    ${filtered.map(draw => `
       <div class="history-item">
-        <strong>${draw.date} — ${draw.hour}</strong>
-        <p>Gagnants : ${draw.winners.join(" - ")}</p>
-        <p>Machines : ${draw.machines.join(" - ")}</p>
+        <div class="history-badge">
+          <strong>${draw.hour}</strong>
+          <div class="history-date">${draw.date}</div>
+        </div>
+
+        <div class="history-nums">
+          <div class="history-row">
+            <span>Gagnants :</span>
+            <div class="history-balls">
+              ${renderHistoryBalls(draw.winners, "winner")}
+            </div>
+          </div>
+
+          <div class="history-row">
+            <span>Machines :</span>
+            <div class="history-balls">
+              ${renderHistoryBalls(draw.machines, "machine")}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn-danger-small"
+          data-delete-date="${draw.date}"
+          data-delete-hour="${draw.hour}"
+          aria-label="Supprimer le tirage du ${draw.date} à ${draw.hour}"
+        >
+          Supprimer
+        </button>
       </div>
     `).join("")}
   `;
+
+  if (!listContainer.dataset.deleteBound) {
+    listContainer.addEventListener("click", event => {
+      const btn = event.target.closest("[data-delete-date]");
+      if (!btn) return;
+
+      deleteDraw(btn.dataset.deleteDate, btn.dataset.deleteHour);
+    });
+
+    listContainer.dataset.deleteBound = "true";
+  }
 }
 
 /* ==========================================================================
@@ -876,6 +1058,15 @@ function bindHourButtons() {
   const grid = document.getElementById("hoursGrid");
   if (!grid) return;
 
+  const activeBtn = grid.querySelector("button.active");
+  if (activeBtn) {
+    const activeText = activeBtn.dataset.hour || activeBtn.textContent;
+    const activeMatch = activeText.match(/\d{1,2}\s*H/i);
+    if (activeMatch) {
+      selectedHour = normalizeHour(activeMatch[0]);
+    }
+  }
+
   grid.addEventListener("click", event => {
     const button = event.target.closest("button");
     if (!button) return;
@@ -896,13 +1087,22 @@ function bindHourButtons() {
     });
 
     const coeff = document.getElementById("hourCoeff");
-    if (coeff) coeff.textContent = selectedHour;
+    if (coeff) coeff.value = selectedHour;
   });
 }
 
 /* ==========================================================================
    SYNCHRONISATION DES DATES
    ========================================================================== */
+
+function syncDayInput(targetDateValue, currentInput) {
+  if (!currentInput || !targetDateValue) return;
+
+  const dayMatch = String(targetDateValue).match(/(\d{2})$/);
+  if (dayMatch) {
+    currentInput.value = Number(dayMatch[1]);
+  }
+}
 
 function bindDateSync() {
   const target = document.getElementById("targetDate");
@@ -911,7 +1111,7 @@ function bindDateSync() {
   if (!target || !current) return;
 
   target.addEventListener("change", () => {
-    current.value = target.value;
+    syncDayInput(target.value, current);
   });
 }
 
@@ -943,7 +1143,9 @@ function bindOCRUpload() {
         .map(Number);
 
       const dateMatch = text.match(/\b\d{4}-\d{2}-\d{2}\b/);
-      const hourMatch = text.match(/\b(?:07|10|13|16|19|21)\s*H\b/i);
+      const hourMatch = text.match(
+        /\b(?:01|03|07|08|10|13|16|18|19|20|21|22|23)\s*H\b/i
+      );
 
       if (dateMatch) {
         const dateInput = document.getElementById("drawDateInput");
@@ -1045,13 +1247,13 @@ function initializeApp() {
 
   const currentDate = document.getElementById("dateCurrent");
 
-  if (currentDate && !currentDate.value) {
-    currentDate.value = targetDate?.value || "";
+  if (currentDate && !currentDate.value && targetDate?.value) {
+    syncDayInput(targetDate.value, currentDate);
   }
 
   const hourElement = document.getElementById("hourCoeff");
 
-  if (hourElement) hourElement.textContent = selectedHour;
+  if (hourElement) hourElement.value = selectedHour;
 
   renderHistory();
   renderDataWarnings();
